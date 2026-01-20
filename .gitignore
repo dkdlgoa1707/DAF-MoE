@@ -1,0 +1,24 @@
+# .gitignore
+
+# Python cache files
+__pycache__/
+*.py[cod]
+
+# Dataset (데이터는 절대 올리지 않음)
+data/*.csv
+data/*.parquet
+data/*.npy
+
+# Trained Models (용량 큼)
+checkpoints/*.pth
+*.pt
+*.ckpt
+
+# Environment
+.env
+venv/
+.vscode/
+.idea/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints
