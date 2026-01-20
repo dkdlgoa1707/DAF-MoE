@@ -4,68 +4,67 @@ from typing import List, Optional
 @dataclass
 class DAFConfig:
     """
-    [DAF-MoE Configuration Schema]
-    모든 하이퍼파라미터의 기본값을 정의합니다.
-    실험 시 YAML 파일(experiments/*.yaml)을 통해 이 값들을 Override 합니다.
+    [Superset Configuration]
+    DAF-MoE 뿐만 아니라, 비교 실험할 Baseline 모델들의 설정까지 모두 포함합니다.
+    사용하지 않는 모델의 파라미터는 무시됩니다.
     """
 
     # ==========================================
-    # 1. Experiment Meta (실험 연결 정보)
+    # 1. Experiment Meta & Model Selection
     # ==========================================
-    # 사용할 데이터셋 명세 파일 경로 (예: configs/datasets/mimic.yaml)
+    model_name: str = "daf_moe"  # [핵심] 사용할 모델 이름 ('daf_moe', 'tabnet', 'ft_transformer')
+    
     data_config_path: str = "" 
     dataset_name: str = "default"
-
-    # ==========================================
-    # 2. Data Constraints (데이터 로드 후 자동 계산됨)
-    # ==========================================
-    n_numerical: int = 0       # 수치형 변수 개수
-    n_categorical: int = 0     # 범주형 변수 개수
-    n_features: int = 0        # 전체 입력 피처 개수 (Num + Cat)
-    total_cats: int = 0        # 임베딩할 전체 고유 범주 수 (Vocab Size)
-
-    # ==========================================
-    # 3. Model Architecture (Transformer Bone)
-    # ==========================================
-    d_emb: int = 64            # 임베딩 차원 (Hidden Dim)
-    n_layers: int = 4          # Transformer 블록 수
-    n_heads: int = 4           # Multi-head Attention 헤드 수
-    dropout: float = 0.1       # Dropout 비율
-
-    # ==========================================
-    # 4. MoE Specifics (DAF-MoE Core)
-    # ==========================================
-    n_experts: int = 4         # 전문가 수
-    top_k: int = 2             # 라우팅 시 선택할 전문가 수
-    d_ff: int = 128            # Expert 내부 FFN 차원 (보통 d_emb * 2 or 4)
-    router_noise_std: float = 0.1  # 라우팅 노이즈 (Exploration 유도)
+    gpu_ids: str = "0"
     
-    # 분포 중심점(mu) 초기화 전략 ('uniform' 권장)
-    mu_init_strategy: str = 'uniform' 
+    # [Data Constraints] (Auto-filled)
+    n_numerical: int = 0
+    n_categorical: int = 0
+    n_features: int = 0
+    total_cats: int = 0
 
     # ==========================================
-    # 5. Preprocessing Params
+    # 2. Common Hyperparameters (모든 모델 공통)
     # ==========================================
-    n_quantiles: int = 1000    # QuantileTransformer 해상도
-    subsample: int = 100000    # 전처리 시 통계 계산에 사용할 샘플 수
-
-    # ==========================================
-    # 6. Training Hyperparameters
-    # ==========================================
-    task_type: str = 'classification' # 'classification' or 'regression'
-    out_dim: int = 1           # 이진분류=1, 다중분류=N
+    task_type: str = 'classification'
+    out_dim: int = 1
     
     batch_size: int = 256
     epochs: int = 50
     learning_rate: float = 1e-3
     weight_decay: float = 1e-4
     
-    # GPU 설정 (YAML에서 지정 가능하도록 추가)
-    gpu_ids: str = "0"
+    # Backbone 공통
+    d_emb: int = 64            # Hidden Dimension
+    n_layers: int = 4          # Depth
+    n_heads: int = 4           # Attention Heads
+    dropout: float = 0.1
 
     # ==========================================
-    # 7. Loss Weights (중요!)
+    # 3. [Model Specific] DAF-MoE
     # ==========================================
-    lambda_spec: float = 0.1   # L_spec: 전문가가 특정 분포(mu)를 맡도록 유도
-    lambda_repel: float = 0.01 # L_repel: 전문가들이 서로 다른 분포를 맡도록 밀어냄
-    lambda_bal: float = 0.001  # L_bal: 한 전문가에게만 쏠리는 것 방지 (Safety Net)
+    n_experts: int = 4
+    top_k: int = 2
+    d_ff: int = 128
+    router_noise_std: float = 0.1
+    mu_init_strategy: str = 'uniform'
+    
+    lambda_spec: float = 0.1
+    lambda_repel: float = 0.01
+    lambda_bal: float = 0.001
+
+    # ==========================================
+    # 4. [Model Specific] TabNet (Example)
+    # ==========================================
+    # TabNet을 쓸 때만 이 값들이 사용됨
+    n_d: int = 8               # Decision prediction layer dim
+    n_a: int = 8               # Attention layer dim
+    n_steps: int = 3           # Architecture steps
+    gamma: float = 1.3         # Coefficient for feature reusage
+    
+    # ==========================================
+    # 5. Preprocessing Params
+    # ==========================================
+    n_quantiles: int = 1000
+    subsample: int = 100000

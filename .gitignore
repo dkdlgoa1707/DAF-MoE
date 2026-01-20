@@ -25,7 +25,5 @@ venv/
 
 ##
 /tools
-/data
-/checkpoints
 /notebooks
 /scripts
