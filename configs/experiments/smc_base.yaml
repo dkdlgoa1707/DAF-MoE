@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/smc.yaml"
+
+# 모델 크기만 키우고 싶다! (나머지는 default_config 값 그대로 사용됨)
+d_emb: 128
+n_layers: 6
+n_heads: 8
+batch_size: 128

@@ -22,3 +22,10 @@ venv/
 
 # Jupyter Notebook checkpoints
 .ipynb_checkpoints
+
+##
+/tools
+/data
+/checkpoints
+/notebooks
+/scripts

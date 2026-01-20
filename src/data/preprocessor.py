@@ -75,7 +75,8 @@ class DAFPreprocessor:
         n_samples = len(df)
         
         # Impute
-        x_num_filled = self.num_imputer.transform(df[self.num_cols])
+        x_num_filled_np = self.num_imputer.transform(df[self.num_cols])
+        x_num_filled = pd.DataFrame(x_num_filled_np, columns=self.num_cols)
         x_cat_filled_np = self.cat_imputer.transform(df[self.cat_cols])
         x_cat_filled = pd.DataFrame(x_cat_filled_np, columns=self.cat_cols)
 
