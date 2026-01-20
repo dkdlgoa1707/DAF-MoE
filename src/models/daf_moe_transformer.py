@@ -30,4 +30,9 @@ class DAFMoETransformer(nn.Module):
         h = torch.flatten(h, start_dim=1)
         logits = self.head(h)
         
-        return logits, routing_history, unified_metadata
+        return {
+            "logits": logits,
+            "history": routing_history,  # DAF 전용
+            "meta": expert_metadata,     # DAF 전용
+            "aux_loss": None             # 다른 모델과의 호환성 (DAF는 Loss클래스에서 계산하므로 None)
+        }
