@@ -1,5 +1,3 @@
-📄 README.md (익명 투고 최적화 버전)
-Markdown
 # DAF-MoE: Distribution-Aware Feature-level Mixture of Experts
 
 > **Official PyTorch Implementation**
