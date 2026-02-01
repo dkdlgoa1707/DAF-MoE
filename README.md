@@ -1,4 +1,4 @@
-📄 README.md 
+📄 README.md (익명 투고 최적화 버전)
 Markdown
 # DAF-MoE: Distribution-Aware Feature-level Mixture of Experts
 
@@ -18,29 +18,35 @@ This repository provides:
 
 ## 🛠️ 1. Installation
 
-This repository provides two ways to set up the environment: **Conda (Recommended)** or **Pip**.
+Since this repository is provided for anonymous review, please **download the source code as a ZIP file** and extract it.
 
 ### Prerequisites
 - Python 3.10
 - CUDA (Recommended for Deep Learning models)
 
-### Option A: Conda (Recommended)
-If you use Anaconda or Miniconda, you can create the environment automatically using `environment.yml`.
-
+### Setup
+1. Open your terminal and navigate to the extracted project root:
 ```bash
-# 1. Clone the repository
-git clone [https://github.com/anonymous/daf-moe.git](https://github.com/anonymous/daf-moe.git)
 cd daf-moe
+Option A: Conda (Recommended)
+Use this option to automatically set up the environment using environment.yml.
 
-# 2. Create Conda environment (Python 3.10 + Dependencies)
+Bash
+# 1. Create Conda environment
 conda env create -f environment.yml
 
-# 3. Activate environment
+# 2. Activate environment
 conda activate daf_moe
 
-# 4. Install the package in editable mode (Essential)
+# 3. Install the package in editable mode (Important!)
 pip install -e .
+Option B: Pip (Standard)
+Bash
+# 1. Install dependencies
+pip install -r requirements.txt
 
+# 2. Install the package in editable mode (Important!)
+pip install -e .
 📂 2. Data Preparation
 Due to licensing and size constraints, raw data files are not included in this repository. Please download the datasets and place them in the data/ directory.
 
@@ -52,91 +58,61 @@ data/
 ├── creditcard.csv
 ├── higgs_small.csv
 ...
-Configuring Datasets: The schema for each dataset (target column, numerical/categorical features) is defined in configs/datasets/*.yaml. You do not need to modify these unless you are using custom data.
+Note: The schema for each dataset is defined in configs/datasets/*.yaml.
 
 🚀 3. Reproduction (Main Results)
-We provide the best hyperparameter configurations found in our experiments in configs/experiments/*_best.yaml. You can reproduce the results reported in the paper (Table 2) using the following scripts.
+We provide the best hyperparameter configurations in configs/experiments/*_best.yaml. You can reproduce the results reported in the paper (Table 2) using the following scripts.
 
 A. Deep Learning Models (15 Seeds)
-To train DAF-MoE or Deep Baselines (FT-Transformer, ResNet) over 15 fixed seeds (43-57):
+To train models over 15 fixed seeds (43-57):
 
 Bash
 # Syntax: bash scripts/reproduce_results.sh <CONFIG_PATH> [GPU_ID]
 
 # Example: Reproduce DAF-MoE on Adult dataset
 bash scripts/reproduce_results.sh configs/experiments/adult_daf_moe_best.yaml 0
-
-# Example: Reproduce FT-Transformer on California Housing
-bash scripts/reproduce_results.sh configs/experiments/california_ft_transformer_best.yaml 0
 B. Tree-Based Models (XGBoost / CatBoost)
-Tree models are trained using runners/run_batch_trees.py or individual run scripts.
-
 Bash
 # Run evaluation for XGBoost on Adult dataset
 python runners/run_trees.py --dataset adult --model xgboost --eval
-
 ⚡ 4. Hyperparameter Optimization (Optional)
-If you wish to re-tune the hyperparameters from scratch, use the scripts/run_hpo.sh script. This utilizes Optuna with the TPE sampler.
+To re-tune hyperparameters from scratch using Optuna:
 
 Bash
 # Syntax: bash scripts/run_hpo.sh <BASE_CONFIG> <HPO_SEARCH_SPACE> <METRIC> <TRIALS> <GPU_ID>
 
-# Example: Tune DAF-MoE on Higgs dataset (Maximize Accuracy)
+# Example: Tune DAF-MoE on Higgs dataset
 bash scripts/run_hpo.sh \
     configs/experiments/higgs_small_daf_moe.yaml \
     configs/hpo/daf_moe.yaml \
     acc 50 0
-Note: The best parameters found will be saved to configs/experiments/{dataset}_{model}_best.yaml.
-
 🔬 5. Ablation Studies
-To validate the contribution of each component (e.g., removing the Raw Path or Specialization Loss), run the ablation script. This automates training for various model variants.
+To validate the contribution of each component:
 
 Bash
-# Run full ablation study (Structural & Loss ablations)
 python runners/run_ablation.py
 Output: Results are saved in results/ablation/.
 
 📊 6. Analysis & Evaluation
-After training, you can generate summaries and perform statistical tests using the scripts in the analysis/ directory.
-
 A. Summarize Results
-Aggregates metrics across all seeds and calculates Mean ± Std.
-
 Bash
 python analysis/summarize_results.py
-Output: results/analysis/final_summary.csv
-
 B. Statistical Significance Test
-Performs Welch's t-test to compare Deep Learning models against GBDT baselines.
-
 Bash
 python analysis/compare_baselines.py
-Output: results/analysis/dl_vs_gbdt_final.csv
-
 C. Robustness Evaluation (Hard Samples)
-Evaluates model performance on "Hard Samples" (Outliers identified by Isolation Forest) to demonstrate robustness.
-
 Bash
 python analysis/eval_robustness.py
-Output: results/analysis/model_comparison_multiseed.csv
-
 📁 Project Structure
 Plaintext
 DAF-MoE/
 ├── src/                    # Source code (Models, Loss, Data Loader)
-│   ├── models/             # DAF-MoE and Baseline implementations
-│   ├── losses/             # Custom loss functions (Spec, Repel, Bal)
-│   └── trainer.py          # Training loop
 ├── configs/                # Configuration files (YAML)
-│   ├── datasets/           # Dataset schemas
-│   └── experiments/        # Hyperparameters (Templates & Best)
-├── scripts/                # Shell scripts for easy execution
-│   ├── reproduce_results.sh
-│   └── run_hpo.sh
+├── scripts/                # Shell scripts for execution
 ├── runners/                # Python runners for Trees & Ablation
 ├── analysis/               # Analysis & Evaluation scripts
-├── results/                # Output logs (Scores, JSONs)
-├── train.py                # Main training entry point
+├── results/                # Output logs
+├── train.py                # Training entry point
 ├── tune.py                 # HPO entry point
 └── setup.py                # Package installation script
 📜 License
