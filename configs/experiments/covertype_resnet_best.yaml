@@ -1,0 +1,16 @@
+batch_size: 1024
+d_hidden_factor: 2.2722750336018
+d_token: 304
+data_config_path: configs/datasets/covertype.yaml
+dataset_name: covertype
+dropout: 0.07076274227665874
+learning_rate: 0.0007910634888229278
+model_name: resnet
+n_layers: 8
+optimize_metric: acc
+out_dim: 7
+task_type: classification
+weight_decay: 0.0019685595003209495
+
+epochs: 200
+patience: 20

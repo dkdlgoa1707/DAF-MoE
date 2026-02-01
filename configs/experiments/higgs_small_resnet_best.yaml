@@ -1,0 +1,14 @@
+batch_size: 512
+d_hidden_factor: 3.074505326876119
+d_token: 128
+data_config_path: configs/datasets/higgs_small.yaml
+dataset_name: higgs_small
+dropout: 0.45545949518982504
+learning_rate: 0.0003882803469199738
+model_name: resnet
+n_layers: 3
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.07518109182911646
+

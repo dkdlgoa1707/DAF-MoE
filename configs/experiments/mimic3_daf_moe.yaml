@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/mimic3.yaml"
+dataset_name: "mimic3"
+model_name: 'daf_moe'
+task_type: "classification" 
+out_dim: 1
+optimize_metric: "auprc"
+batch_size: 512

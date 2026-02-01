@@ -1,0 +1,14 @@
+attention_dropout: 0.22725322960862354
+d_ff_factor: 1.9847454595767158
+d_token: 112
+data_config_path: configs/datasets/california.yaml
+dataset_name: california
+ffn_dropout: 0.0025899506577888726
+learning_rate: 0.0006879570771072761
+model_name: ft_transformer
+n_layers: 3
+optimize_metric: rmse
+out_dim: 1
+residual_dropout: 0.004097207520354078
+task_type: regression
+weight_decay: 0.0005415983285227771

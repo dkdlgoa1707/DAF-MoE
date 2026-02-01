@@ -1,0 +1,21 @@
+{
+    "dataset": "creditcard",
+    "model": "xgboost",
+    "seed": 56,
+    "metrics": {
+        "acc": 0.9995435553526912,
+        "auprc": 0.8541441624558221,
+        "auroc": 0.983832531324291,
+        "train_time": 1.7831110954284668,
+        "inference_time": 0.013734102249145508
+    },
+    "config": {
+        "colsample_bytree": 0.8416065482694302,
+        "gamma": 1.9426991733641748e-08,
+        "learning_rate": 0.0386525959979454,
+        "max_depth": 9,
+        "min_child_weight": 5,
+        "n_estimators": 1162,
+        "subsample": 0.6571695470522904
+    }
+}

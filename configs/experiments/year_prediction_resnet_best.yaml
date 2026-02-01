@@ -1,0 +1,13 @@
+batch_size: 1024
+d_hidden_factor: 3.0491805156231857
+d_token: 304
+data_config_path: configs/datasets/year_prediction.yaml
+dataset_name: year_prediction
+dropout: 0.18110980627867393
+learning_rate: 0.0009675919992657261
+model_name: resnet
+n_layers: 5
+optimize_metric: rmse
+out_dim: 1
+task_type: regression
+weight_decay: 0.00016640133530664505

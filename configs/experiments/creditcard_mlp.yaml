@@ -1,0 +1,8 @@
+data_config_path: "configs/datasets/creditcard.yaml"
+dataset_name: "creditcard"
+model_name: 'mlp'
+task_type: "classification" 
+out_dim: 1
+optimize_metric: "auprc"
+batch_size: 512
+

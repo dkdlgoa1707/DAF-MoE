@@ -1,0 +1,15 @@
+batch_size: 1024
+d_token: 368
+data_config_path: configs/datasets/covertype.yaml
+dataset_name: covertype
+dropout: 0.025279504275446844
+learning_rate: 0.0004461276742698636
+model_name: mlp
+n_layers: 5
+optimize_metric: acc
+out_dim: 7
+task_type: classification
+weight_decay: 0.003613108024795289
+
+epochs: 200
+patience: 20

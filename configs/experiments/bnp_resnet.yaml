@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/bnp.yaml"
+dataset_name: "bnp"
+model_name: 'resnet'
+task_type: "classification" 
+out_dim: 1
+optimize_metric: "acc"
+batch_size: 512

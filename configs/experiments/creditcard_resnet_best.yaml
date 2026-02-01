@@ -1,0 +1,13 @@
+batch_size: 512
+d_hidden_factor: 2.59652287569115
+d_token: 224
+data_config_path: configs/datasets/creditcard.yaml
+dataset_name: creditcard
+dropout: 0.12802530052915154
+learning_rate: 0.0007313642676717449
+model_name: resnet
+n_layers: 7
+optimize_metric: auprc
+out_dim: 1
+task_type: classification
+weight_decay: 0.004206706586093573

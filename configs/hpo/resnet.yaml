@@ -1,0 +1,35 @@
+# Aligned with FT-Transformer Optimization
+# [Shared Structure equivalent]
+n_layers: # blocks
+  type: "int"
+  low: 1
+  high: 8 # ResNet은 보통 Transformer보다 층을 더 쌓아도 가벼워서 조금 더 줌 (또는 4로 통일도 무방)
+
+d_token: # Width
+  type: "int"
+  low: 64 # ResNet은 너무 작으면 성능이 안 나와서 하한만 조정 (상한은 유지)
+  high: 384
+  step: 16
+
+d_hidden_factor: # ResNet의 d_ff 개념
+  type: "float"
+  low: 1.0
+  high: 4.0
+
+# [Shared Optimization]
+learning_rate:
+  type: "float"
+  low: 3e-5 # FT 기준 통일
+  high: 1e-3
+  log: true
+
+weight_decay:
+  type: "float"
+  low: 1e-4 # FT 기준 통일
+  high: 1e-1
+  log: true
+
+dropout:
+  type: "float"
+  low: 0.0
+  high: 0.5

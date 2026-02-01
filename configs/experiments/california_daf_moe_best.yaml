@@ -1,0 +1,18 @@
+d_emb: 96
+d_ff_factor: 2.2917575184387013
+data_config_path: configs/datasets/california.yaml
+dataset_name: california
+dropout: 0.236538290669117
+lambda_bal: 0.06454865482503035
+lambda_repel: 0.011396332771925498
+lambda_spec: 0.1412479184583438
+learning_rate: 0.0008273719384503577
+model_name: daf_moe
+mu_init_strategy: normal
+n_experts: 8
+n_layers: 4
+optimize_metric: rmse
+out_dim: 1
+task_type: regression
+weight_decay: 0.010785565157908754
+

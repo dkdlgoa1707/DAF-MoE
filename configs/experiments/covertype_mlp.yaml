@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/covertype.yaml"
+dataset_name: "covertype"
+model_name: 'mlp'
+task_type: "classification" 
+out_dim: 7
+optimize_metric: "acc"
+batch_size: 1024

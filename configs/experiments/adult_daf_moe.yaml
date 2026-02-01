@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/adult.yaml"
+dataset_name: "adult"
+model_name: 'daf_moe'
+task_type: "classification" 
+out_dim: 1
+optimize_metric: "acc"
+

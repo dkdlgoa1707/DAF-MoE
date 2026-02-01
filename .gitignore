@@ -1,0 +1,75 @@
+# ==========================
+# 1. System & IDE (기본)
+# ==========================
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ==========================
+# 2. Python Environment
+# ==========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+venv/
+env/
+.conda/
+.env
+
+# ==========================
+# 3. Data (중요: 절대 업로드 금지)
+# ==========================
+# 폴더 구조는 유지하되 파일은 무시 (.gitkeep만 허용)
+data/*
+!data/.gitkeep
+physionet.org/
+
+# 혹시 모를 대용량 파일 차단
+*.csv
+*.arff
+*.gz
+*.zip
+*.tar
+*.rar
+
+# ==========================
+# 4. Model Checkpoints (용량 제한)
+# ==========================
+checkpoints/
+*.pth
+*.ckpt
+*.pkl
+*.model
+
+# ==========================
+# 5. Logs & Temporary Files
+# ==========================
+logs/
+wandb/
+catboost_info/
+*.log
+
+# ==========================
+# 6. Optimization & Tuning
+# ==========================
+# HPO DB 및 임시 결과
+*.db
+results/tuning/
+results/temp_hpo/
+
+# ==========================
+# 7. Unnecessary Configs
+# ==========================
+configs/experiments_notyet/
+configs/temp_hpo/
+
+# ==========================
+# 8. Results (선택적 허용)
+# ==========================
+# results 폴더는 허용하되, 불필요한 것만 제외
+# (Analysis CSV와 Scores JSON은 증거 자료로 유지)
+results/ablation/*.json

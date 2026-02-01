@@ -1,0 +1,19 @@
+dataset_name: "Covertype"
+target_col: "target"
+csv_path: "data/covertype.csv" 
+
+num_cols:
+  - "elevation"
+  - "aspect"
+  - "slope"
+  - "horizontal_distance_to_hydrology"
+  - "vertical_distance_to_hydrology"
+  - "horizontal_distance_to_roadways"
+  - "hillshade_9am"
+  - "hillshade_noon"
+  - "hillshade_3pm"
+  - "horizontal_distance_to_fire_points"
+
+cat_cols:
+  - "wilderness_area"
+  - "soil_type"

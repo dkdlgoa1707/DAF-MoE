@@ -1,0 +1,62 @@
+# Aligned with FT-Transformer Standard
+# [Shared Structure]
+n_layers:
+  type: "int"
+  low: 1
+  high: 4
+
+d_emb: # FT의 d_token과 동일 범위
+  type: "int"
+  low: 16
+  high: 384
+  step: 16
+
+d_ff_factor: # FT의 d_ff_factor와 동일 범위
+  type: "float"
+  low: 0.66
+  high: 2.66
+
+# [Shared Optimization]
+learning_rate:
+  type: "float"
+  low: 3e-5
+  high: 1e-3
+  log: true
+
+weight_decay:
+  type: "float"
+  low: 1e-4
+  high: 1e-1
+  log: true
+
+# [Regularization] - FT의 dropout 범위 준수
+dropout: # Main dropout (attention/ffn 통합 관리 권장)
+  type: "float"
+  low: 0.0
+  high: 0.5
+
+# [MoE Specific] - 여기만 DAF-MoE 고유 파라미터
+n_experts:
+  type: "categorical"
+  choices: [4, 8]
+
+lambda_spec:
+  type: "float"
+  low: 0.01
+  high: 0.5
+
+lambda_repel:
+  type: "float"
+  low: 0.01
+  high: 0.1
+  log: true
+
+lambda_bal:
+  type: "float"
+  low: 0.01
+  high: 0.1
+  log: true
+
+mu_init_strategy:
+  type: "categorical"
+  choices: ["linspace", "random", "normal"] # 코드에서 사용하는 문자열과 정확히 일치해야 함!

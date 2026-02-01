@@ -1,0 +1,15 @@
+attention_dropout: 0.2741602012197679
+batch_size: 512
+d_ff_factor: 1.3862345418232966
+d_token: 176
+data_config_path: configs/datasets/mimic3.yaml
+dataset_name: mimic3
+ffn_dropout: 0.06265534815170265
+learning_rate: 0.0003991012012699245
+model_name: ft_transformer
+n_layers: 1
+optimize_metric: auprc
+out_dim: 1
+residual_dropout: 0.16688529080015113
+task_type: classification
+weight_decay: 0.06340087000194178

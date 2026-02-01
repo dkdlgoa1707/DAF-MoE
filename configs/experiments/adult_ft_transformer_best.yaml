@@ -1,0 +1,14 @@
+attention_dropout: 0.39610259930284386
+d_ff_factor: 2.2894573622129424
+d_token: 64
+data_config_path: configs/datasets/adult.yaml
+dataset_name: adult
+ffn_dropout: 0.46416061410220943
+learning_rate: 6.849124522666937e-05
+model_name: ft_transformer
+n_layers: 2
+optimize_metric: acc
+out_dim: 1
+residual_dropout: 0.16220752690237755
+task_type: classification
+weight_decay: 0.048319463436333705

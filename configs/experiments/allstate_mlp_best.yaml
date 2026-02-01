@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 320
+data_config_path: configs/datasets/allstate.yaml
+dataset_name: allstate
+dropout: 0.04508702647371385
+learning_rate: 0.0002673374912917816
+model_name: mlp
+n_layers: 6
+optimize_metric: rmse
+out_dim: 1
+task_type: regression
+weight_decay: 0.00010551501307646638

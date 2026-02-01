@@ -1,0 +1,24 @@
+dataset_name: "MIMIC-III Mortality"
+target_col: "mortality"
+csv_path: "data/mimic3.csv"
+
+num_cols:
+  - "Diastolic blood pressure"
+  - "FiO2"
+  - "GCS Eye"
+  - "GCS Motor"
+  - "GCS Total"
+  - "GCS Verbal"
+  - "Glucose"
+  - "Heart Rate"
+  - "Height"
+  - "Mean blood pressure"
+  - "Oxygen saturation"
+  - "Respiratory rate"
+  - "Systolic blood pressure"
+  - "Temperature"
+  - "Weight"
+  - "pH"
+
+cat_cols:
+  - "Capillary refill rate"

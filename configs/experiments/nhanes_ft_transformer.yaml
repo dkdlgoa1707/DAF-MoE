@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/nhanes.yaml"
+dataset_name: "nhanes"
+model_name: 'ft_transformer'
+task_type: "classification" 
+out_dim: 1
+optimize_metric: "acc"
+batch_size: 256

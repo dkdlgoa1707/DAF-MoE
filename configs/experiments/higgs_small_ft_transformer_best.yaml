@@ -1,0 +1,19 @@
+batch_size: 512
+d_emb: 304
+d_ff_factor: 2.0160360150554393
+data_config_path: configs/datasets/higgs_small.yaml
+dataset_name: higgs_small
+dropout: 0.2780417387682197
+lambda_bal: 0.06610954159447335
+lambda_repel: 0.04665579433143564
+lambda_spec: 0.29403792242978866
+learning_rate: 7.595591791509445e-05
+model_name: ft_transformer
+mu_init_strategy: random
+n_experts: 8
+n_layers: 3
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.059619139458471894
+

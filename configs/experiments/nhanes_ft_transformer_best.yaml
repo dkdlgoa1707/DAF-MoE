@@ -1,0 +1,15 @@
+attention_dropout: 0.38563517334297287
+batch_size: 256
+d_ff_factor: 0.8917381190502595
+d_token: 320
+data_config_path: configs/datasets/nhanes.yaml
+dataset_name: nhanes
+ffn_dropout: 0.03702232586704518
+learning_rate: 0.00035774970112614497
+model_name: ft_transformer
+n_layers: 1
+optimize_metric: acc
+out_dim: 1
+residual_dropout: 0.07169314570885453
+task_type: classification
+weight_decay: 0.015382308040279003

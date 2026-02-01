@@ -1,0 +1,20 @@
+{
+    "dataset": "creditcard",
+    "model": "catboost",
+    "seed": 44,
+    "metrics": {
+        "acc": 0.9997191109862715,
+        "auprc": 0.8667451006204915,
+        "auroc": 0.9818830176977938,
+        "train_time": 9.33142614364624,
+        "inference_time": 0.022951602935791016
+    },
+    "config": {
+        "colsample_bylevel": 0.5065511509974314,
+        "learning_rate": 0.10199809320295407,
+        "max_depth": 10,
+        "min_data_in_leaf": 18,
+        "n_estimators": 781,
+        "subsample": 0.5924715107066294
+    }
+}

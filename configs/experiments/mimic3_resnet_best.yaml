@@ -1,0 +1,13 @@
+batch_size: 512
+d_hidden_factor: 2.879800905757768
+d_token: 224
+data_config_path: configs/datasets/mimic3.yaml
+dataset_name: mimic3
+dropout: 0.22063651771050777
+learning_rate: 0.00012837907104956619
+model_name: resnet
+n_layers: 7
+optimize_metric: auprc
+out_dim: 1
+task_type: classification
+weight_decay: 0.060642184301744645

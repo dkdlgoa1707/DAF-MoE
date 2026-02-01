@@ -1,0 +1,12 @@
+d_hidden_factor: 2.0770876937814995
+d_token: 272
+data_config_path: configs/datasets/california.yaml
+dataset_name: california
+dropout: 0.004343017998334607
+learning_rate: 0.00011355662819005712
+model_name: resnet
+n_layers: 8
+optimize_metric: rmse
+out_dim: 1
+task_type: regression
+weight_decay: 0.012119848304557443

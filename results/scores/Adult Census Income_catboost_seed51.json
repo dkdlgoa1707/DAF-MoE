@@ -1,0 +1,20 @@
+{
+    "dataset": "adult",
+    "model": "catboost",
+    "seed": 51,
+    "metrics": {
+        "acc": 0.8708290685772774,
+        "auprc": 0.8193804613862301,
+        "auroc": 0.9226754855658511,
+        "train_time": 10.789786100387573,
+        "inference_time": 0.013289451599121094
+    },
+    "config": {
+        "colsample_bytree": 0.5892358393266599,
+        "learning_rate": 0.026649359980053036,
+        "max_depth": 10,
+        "min_data_in_leaf": 24,
+        "n_estimators": 1368,
+        "subsample": 0.9170039276791857
+    }
+}

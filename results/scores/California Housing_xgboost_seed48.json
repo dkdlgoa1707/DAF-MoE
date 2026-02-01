@@ -1,0 +1,19 @@
+{
+    "dataset": "california",
+    "model": "xgboost",
+    "seed": 48,
+    "metrics": {
+        "rmse": 0.4501634587012663,
+        "train_time": 1.175313949584961,
+        "inference_time": 0.007574319839477539
+    },
+    "config": {
+        "colsample_bytree": 0.7152381983859724,
+        "gamma": 1.061203415659442e-05,
+        "learning_rate": 0.01850379313589321,
+        "max_depth": 9,
+        "min_child_weight": 7,
+        "n_estimators": 1317,
+        "subsample": 0.8015790268236545
+    }
+}

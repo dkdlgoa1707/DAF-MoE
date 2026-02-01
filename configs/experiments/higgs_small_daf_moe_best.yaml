@@ -1,0 +1,19 @@
+batch_size: 512
+d_emb: 80
+d_ff_factor: 0.6710442342472048
+data_config_path: configs/datasets/higgs_small.yaml
+dataset_name: higgs_small
+dropout: 0.36450358402049365
+lambda_bal: 0.07296312489711157
+lambda_repel: 0.013057771348997228
+lambda_spec: 0.1856482069866936
+learning_rate: 0.0005235644275807036
+model_name: daf_moe
+mu_init_strategy: linspace
+n_experts: 4
+n_layers: 4
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.013199942261535026
+

@@ -1,0 +1,19 @@
+{
+    "dataset": "year_prediction",
+    "model": "xgboost",
+    "seed": 46,
+    "metrics": {
+        "rmse": 8.531360890991762,
+        "train_time": 80.03570103645325,
+        "inference_time": 0.2896888256072998
+    },
+    "config": {
+        "colsample_bytree": 0.6774552999987804,
+        "gamma": 4.8877723734230985e-06,
+        "learning_rate": 0.028299042833266324,
+        "max_depth": 10,
+        "min_child_weight": 5,
+        "n_estimators": 1169,
+        "subsample": 0.9900894354895498
+    }
+}

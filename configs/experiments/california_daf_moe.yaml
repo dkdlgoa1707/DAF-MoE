@@ -1,0 +1,9 @@
+data_config_path: "configs/datasets/california.yaml"
+dataset_name: "california"
+model_name: 'daf_moe'
+task_type: "regression" 
+out_dim: 1
+optimize_metric: "rmse"
+
+
+

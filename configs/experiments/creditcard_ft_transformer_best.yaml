@@ -1,0 +1,15 @@
+attention_dropout: 0.2584933315085195
+batch_size: 512
+d_ff_factor: 1.2917821696599763
+d_token: 224
+data_config_path: configs/datasets/creditcard.yaml
+dataset_name: creditcard
+ffn_dropout: 0.41480469457319447
+learning_rate: 0.000175147761514617
+model_name: ft_transformer
+n_layers: 2
+optimize_metric: auprc
+out_dim: 1
+residual_dropout: 0.03381280552303339
+task_type: classification
+weight_decay: 0.0001356324386790793

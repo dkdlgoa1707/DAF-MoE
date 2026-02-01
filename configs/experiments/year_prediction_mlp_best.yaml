@@ -1,0 +1,12 @@
+batch_size: 1024
+d_token: 192
+data_config_path: configs/datasets/year_prediction.yaml
+dataset_name: year_prediction
+dropout: 0.0008451325712355629
+learning_rate: 3.1701473700162436e-05
+model_name: mlp
+n_layers: 4
+optimize_metric: rmse
+out_dim: 1
+task_type: regression
+weight_decay: 0.026558167359917447

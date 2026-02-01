@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/higgs_small.yaml"
+dataset_name: "higgs_small"
+model_name: 'ft_transformer'
+task_type: "classification" 
+out_dim: 1
+optimize_metric: "acc"
+batch_size: 512

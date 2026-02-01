@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/year_prediction.yaml"
+dataset_name: "year_prediction"
+model_name: 'resnet'
+task_type: "regression" 
+out_dim: 1
+optimize_metric: "rmse"
+batch_size: 1024

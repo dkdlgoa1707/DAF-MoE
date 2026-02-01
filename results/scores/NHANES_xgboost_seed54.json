@@ -1,0 +1,21 @@
+{
+    "dataset": "nhanes",
+    "model": "xgboost",
+    "seed": 54,
+    "metrics": {
+        "acc": 0.8213034337771549,
+        "auprc": 0.7921723707565211,
+        "auroc": 0.8739239932841192,
+        "train_time": 0.568382978439331,
+        "inference_time": 0.016968250274658203
+    },
+    "config": {
+        "colsample_bytree": 0.8946331792145449,
+        "gamma": 3.044155582706421e-08,
+        "learning_rate": 0.11048462894649744,
+        "max_depth": 3,
+        "min_child_weight": 2,
+        "n_estimators": 667,
+        "subsample": 0.8255112291392005
+    }
+}

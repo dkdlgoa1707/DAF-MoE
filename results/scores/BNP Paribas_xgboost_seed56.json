@@ -1,0 +1,21 @@
+{
+    "dataset": "bnp",
+    "model": "xgboost",
+    "seed": 56,
+    "metrics": {
+        "acc": 0.7843085804250853,
+        "auprc": 0.907436986935519,
+        "auroc": 0.7622989041293075,
+        "train_time": 15.6095609664917,
+        "inference_time": 0.04591631889343262
+    },
+    "config": {
+        "colsample_bytree": 0.5000565764210153,
+        "gamma": 1.6018246959969425e-06,
+        "learning_rate": 0.01655632281377666,
+        "max_depth": 10,
+        "min_child_weight": 1,
+        "n_estimators": 1342,
+        "subsample": 0.9488681687014834
+    }
+}

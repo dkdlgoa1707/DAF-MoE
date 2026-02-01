@@ -1,0 +1,19 @@
+{
+    "dataset": "allstate",
+    "model": "xgboost",
+    "seed": 49,
+    "metrics": {
+        "rmse": 1984.5305842485493,
+        "train_time": 7.952394247055054,
+        "inference_time": 0.062355756759643555
+    },
+    "config": {
+        "colsample_bytree": 0.5574611686288968,
+        "gamma": 0.8696271277113216,
+        "learning_rate": 0.021392541846270492,
+        "max_depth": 10,
+        "min_child_weight": 10,
+        "n_estimators": 1158,
+        "subsample": 0.7964667882592089
+    }
+}

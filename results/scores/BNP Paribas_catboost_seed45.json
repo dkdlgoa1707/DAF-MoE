@@ -1,0 +1,20 @@
+{
+    "dataset": "bnp",
+    "model": "catboost",
+    "seed": 45,
+    "metrics": {
+        "acc": 0.7837837837837838,
+        "auprc": 0.9023640188952383,
+        "auroc": 0.7549043549043548,
+        "train_time": 30.0345139503479,
+        "inference_time": 0.023938894271850586
+    },
+    "config": {
+        "colsample_bylevel": 0.5817600755463344,
+        "learning_rate": 0.0965334782142455,
+        "max_depth": 9,
+        "min_data_in_leaf": 23,
+        "n_estimators": 1686,
+        "subsample": 0.5862907064397933
+    }
+}

@@ -1,0 +1,18 @@
+{
+    "dataset": "california",
+    "model": "catboost",
+    "seed": 45,
+    "metrics": {
+        "rmse": 0.4246579221320997,
+        "train_time": 3.4731948375701904,
+        "inference_time": 0.0030007362365722656
+    },
+    "config": {
+        "colsample_bytree": 0.9858939705856237,
+        "learning_rate": 0.08396384144978315,
+        "max_depth": 7,
+        "min_data_in_leaf": 19,
+        "n_estimators": 1884,
+        "subsample": 0.7929682513350382
+    }
+}

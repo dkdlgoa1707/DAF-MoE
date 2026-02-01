@@ -1,0 +1,13 @@
+batch_size: 512
+d_hidden_factor: 2.8465051630529348
+d_token: 64
+data_config_path: configs/datasets/bnp.yaml
+dataset_name: bnp
+dropout: 0.23974923855278138
+learning_rate: 4.3808664050345e-05
+model_name: resnet
+n_layers: 6
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.0007153094766330818

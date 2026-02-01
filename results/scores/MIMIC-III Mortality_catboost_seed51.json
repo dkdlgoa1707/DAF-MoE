@@ -1,0 +1,20 @@
+{
+    "dataset": "mimic3",
+    "model": "catboost",
+    "seed": 51,
+    "metrics": {
+        "acc": 0.9112772180695483,
+        "auprc": 0.521895084171877,
+        "auroc": 0.8505381488143484,
+        "train_time": 4.988417863845825,
+        "inference_time": 0.008738517761230469
+    },
+    "config": {
+        "colsample_bylevel": 0.8312567678269636,
+        "learning_rate": 0.06005717121154954,
+        "max_depth": 7,
+        "min_data_in_leaf": 17,
+        "n_estimators": 859,
+        "subsample": 0.5862765711238483
+    }
+}

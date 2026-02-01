@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 304
+data_config_path: configs/datasets/creditcard.yaml
+dataset_name: creditcard
+dropout: 0.10216119165041863
+learning_rate: 7.647857672217765e-05
+model_name: mlp
+n_layers: 2
+optimize_metric: auprc
+out_dim: 1
+task_type: classification
+weight_decay: 0.007512636903094641

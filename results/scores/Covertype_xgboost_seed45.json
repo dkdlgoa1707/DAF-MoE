@@ -1,0 +1,21 @@
+{
+    "dataset": "covertype",
+    "model": "xgboost",
+    "seed": 45,
+    "metrics": {
+        "acc": 0.9696740215483116,
+        "auprc": 0.0,
+        "auroc": 0.0,
+        "train_time": 77.03375959396362,
+        "inference_time": 1.2439558506011963
+    },
+    "config": {
+        "colsample_bytree": 0.9905515656573027,
+        "gamma": 2.0942143775154036e-07,
+        "learning_rate": 0.1821499376547901,
+        "max_depth": 8,
+        "min_child_weight": 3,
+        "n_estimators": 1306,
+        "subsample": 0.6819206608948218
+    }
+}

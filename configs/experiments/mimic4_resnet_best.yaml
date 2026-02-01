@@ -1,0 +1,13 @@
+batch_size: 512
+d_hidden_factor: 1.2048509036224389
+d_token: 128
+data_config_path: configs/datasets/mimic4.yaml
+dataset_name: mimic4
+dropout: 0.3600918594171806
+learning_rate: 0.00017687596014443157
+model_name: resnet
+n_layers: 2
+optimize_metric: auprc
+out_dim: 1
+task_type: classification
+weight_decay: 0.006675897436062268

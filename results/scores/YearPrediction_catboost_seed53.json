@@ -1,0 +1,18 @@
+{
+    "dataset": "year_prediction",
+    "model": "catboost",
+    "seed": 53,
+    "metrics": {
+        "rmse": 8.541032007854174,
+        "train_time": 116.97597765922546,
+        "inference_time": 0.048888206481933594
+    },
+    "config": {
+        "colsample_bytree": 0.5444811785037783,
+        "learning_rate": 0.10147471728682907,
+        "max_depth": 10,
+        "min_data_in_leaf": 5,
+        "n_estimators": 1847,
+        "subsample": 0.8405099730478123
+    }
+}

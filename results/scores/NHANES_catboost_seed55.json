@@ -1,0 +1,20 @@
+{
+    "dataset": "nhanes",
+    "model": "catboost",
+    "seed": 55,
+    "metrics": {
+        "acc": 0.8206026629292221,
+        "auprc": 0.7793173805170717,
+        "auroc": 0.8728735264593271,
+        "train_time": 1.4289109706878662,
+        "inference_time": 0.008393526077270508
+    },
+    "config": {
+        "colsample_bylevel": 0.6211361914020914,
+        "learning_rate": 0.061731963984700815,
+        "max_depth": 5,
+        "min_data_in_leaf": 21,
+        "n_estimators": 906,
+        "subsample": 0.866895137313936
+    }
+}

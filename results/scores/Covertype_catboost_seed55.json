@@ -1,0 +1,20 @@
+{
+    "dataset": "covertype",
+    "model": "catboost",
+    "seed": 55,
+    "metrics": {
+        "acc": 0.9628756325083474,
+        "auprc": 0.0,
+        "auroc": 0.0,
+        "train_time": 413.23346519470215,
+        "inference_time": 0.1659708023071289
+    },
+    "config": {
+        "colsample_bytree": 0.7788263794392843,
+        "learning_rate": 0.28497060848590644,
+        "max_depth": 9,
+        "min_data_in_leaf": 9,
+        "n_estimators": 1812,
+        "subsample": 0.7366370701490699
+    }
+}

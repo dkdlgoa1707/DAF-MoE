@@ -1,0 +1,21 @@
+{
+    "dataset": "mimic4",
+    "model": "xgboost",
+    "seed": 45,
+    "metrics": {
+        "acc": 0.9041922506881219,
+        "auprc": 0.5734793171891643,
+        "auroc": 0.8688157566242288,
+        "train_time": 2.1091928482055664,
+        "inference_time": 0.018867015838623047
+    },
+    "config": {
+        "colsample_bytree": 0.7554682219156207,
+        "gamma": 5.0783254862156436e-08,
+        "learning_rate": 0.015988691686666466,
+        "max_depth": 9,
+        "min_child_weight": 9,
+        "n_estimators": 993,
+        "subsample": 0.7664542448609134
+    }
+}

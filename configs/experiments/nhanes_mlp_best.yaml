@@ -1,0 +1,12 @@
+batch_size: 256
+d_token: 80
+data_config_path: configs/datasets/nhanes.yaml
+dataset_name: nhanes
+dropout: 0.35403628889802274
+learning_rate: 0.0006254642575696304
+model_name: mlp
+n_layers: 2
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.006358358856676255

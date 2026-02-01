@@ -1,0 +1,7 @@
+data_config_path: "configs/datasets/allstate.yaml"
+dataset_name: "allstate"
+model_name: 'mlp'
+task_type: "regression" 
+out_dim: 1
+optimize_metric: "rmse"
+batch_size: 512

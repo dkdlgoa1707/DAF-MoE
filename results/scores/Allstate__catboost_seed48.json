@@ -1,0 +1,18 @@
+{
+    "dataset": "allstate",
+    "model": "catboost",
+    "seed": 48,
+    "metrics": {
+        "rmse": 1874.150055976702,
+        "train_time": 5.335126638412476,
+        "inference_time": 0.01110982894897461
+    },
+    "config": {
+        "colsample_bytree": 0.5858811820216719,
+        "learning_rate": 0.15633779348835156,
+        "max_depth": 7,
+        "min_data_in_leaf": 18,
+        "n_estimators": 940,
+        "subsample": 0.6771425982440806
+    }
+}

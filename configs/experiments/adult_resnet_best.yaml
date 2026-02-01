@@ -1,0 +1,14 @@
+d_hidden_factor: 1.2726973874263654
+d_token: 288
+data_config_path: configs/datasets/adult.yaml
+dataset_name: adult
+dropout: 0.26663407453563803
+learning_rate: 0.0009681221067018237
+model_name: resnet
+n_layers: 1
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.0017299851154512229
+epochs: 200
+patience: 20

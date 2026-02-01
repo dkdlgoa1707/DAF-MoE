@@ -1,0 +1,21 @@
+dataset_name: "Adult Census Income"
+target_col: "income"
+csv_path: "data/adult.csv" 
+
+num_cols:
+  - "age"
+  - "fnlwgt"
+  - "education-num"
+  - "capital-gain"
+  - "capital-loss"
+  - "hours-per-week"
+
+cat_cols:
+  - "workclass"
+  - "education"
+  - "marital-status"
+  - "occupation"
+  - "relationship"
+  - "race"
+  - "sex"
+  - "native-country"

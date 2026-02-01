@@ -1,0 +1,15 @@
+attention_dropout: 0.018346014605539605
+batch_size: 512
+d_ff_factor: 2.4850776259505216
+d_token: 80
+data_config_path: configs/datasets/allstate.yaml
+dataset_name: allstate
+ffn_dropout: 0.43392474200945574
+learning_rate: 0.000990919466916213
+model_name: ft_transformer
+n_layers: 1
+optimize_metric: rmse
+out_dim: 1
+residual_dropout: 0.18174460924289057
+task_type: regression
+weight_decay: 0.0003017015687741017

@@ -1,0 +1,13 @@
+batch_size: 256
+d_hidden_factor: 2.2201662389159353
+d_token: 96
+data_config_path: configs/datasets/nhanes.yaml
+dataset_name: nhanes
+dropout: 0.25326834954283794
+learning_rate: 0.00045181432564981883
+model_name: resnet
+n_layers: 5
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.0001734666391869534

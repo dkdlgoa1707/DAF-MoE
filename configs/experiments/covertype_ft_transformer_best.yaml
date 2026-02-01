@@ -1,0 +1,18 @@
+attention_dropout: 0.2898910893647322
+batch_size: 1024
+d_ff_factor: 2.0390590296197253
+d_token: 320
+data_config_path: configs/datasets/covertype.yaml
+dataset_name: covertype
+ffn_dropout: 0.35873303370938053
+learning_rate: 0.00012148224006044095
+model_name: ft_transformer
+n_layers: 4
+optimize_metric: acc
+out_dim: 7
+residual_dropout: 0.14838231574434663
+task_type: classification
+weight_decay: 0.00410554464267705
+
+epochs: 200
+patience: 20

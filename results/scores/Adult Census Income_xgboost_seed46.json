@@ -1,0 +1,21 @@
+{
+    "dataset": "adult",
+    "model": "xgboost",
+    "seed": 46,
+    "metrics": {
+        "acc": 0.8741044012282497,
+        "auprc": 0.8339603529708927,
+        "auroc": 0.9296005482499555,
+        "train_time": 2.47906231880188,
+        "inference_time": 0.04653477668762207
+    },
+    "config": {
+        "colsample_bytree": 0.7058916838426581,
+        "gamma": 0.0009768806673497782,
+        "learning_rate": 0.003805346501498945,
+        "max_depth": 8,
+        "min_child_weight": 2,
+        "n_estimators": 1485,
+        "subsample": 0.7700843690768302
+    }
+}

@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 160
+data_config_path: configs/datasets/mimic3.yaml
+dataset_name: mimic3
+dropout: 0.14561457009902096
+learning_rate: 0.00018891292434997686
+model_name: mlp
+n_layers: 2
+optimize_metric: auprc
+out_dim: 1
+task_type: classification
+weight_decay: 0.0019762189340280074

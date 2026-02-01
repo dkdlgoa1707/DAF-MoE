@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 256
+data_config_path: configs/datasets/bnp.yaml
+dataset_name: bnp
+dropout: 0.32185636831191167
+learning_rate: 5.698687763584381e-05
+model_name: mlp
+n_layers: 3
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.00023509811106845136

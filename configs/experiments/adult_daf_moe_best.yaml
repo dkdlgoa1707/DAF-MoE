@@ -1,0 +1,17 @@
+d_emb: 240
+d_ff_factor: 1.7957330594268006
+data_config_path: configs/datasets/adult.yaml
+dataset_name: adult
+dropout: 0.308371760964638
+lambda_bal: 0.03699067404310253
+lambda_repel: 0.023285475703142572
+lambda_spec: 0.27262391814777487
+learning_rate: 0.00012911711369322868
+model_name: daf_moe
+mu_init_strategy: random
+n_experts: 4
+n_layers: 4
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.03930331745085877

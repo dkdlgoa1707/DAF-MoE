@@ -1,0 +1,15 @@
+dataset_name: "California Housing"
+target_col: "medhouseval"
+csv_path: "data/california_housing.csv" 
+
+num_cols:
+  - "medinc"
+  - "houseage"
+  - "averooms"
+  - "avebedrms"
+  - "population"
+  - "aveoccup"
+  - "latitude"
+  - "longitude"
+
+cat_cols: []
