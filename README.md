@@ -1,4 +1,3 @@
-```markdown
 # DAF-MoE: Distribution-Aware Feature-level Mixture of Experts
 
 > **Official PyTorch Implementation**
