@@ -26,7 +26,7 @@ Since this repository is provided for anonymous review, please **download the so
 1. Open your terminal and navigate to the extracted project root:
 
 ```bash
-cd daf-moe
+cd DAF-MoE-FBA4 
 
 ```
 
@@ -146,7 +146,7 @@ python analysis/summarize_results.py
 ### B. Statistical Significance Test
 
 ```bash
-python analysis/compare_baselines.py
+python analysis/significance_test.py
 
 ```
 

@@ -95,18 +95,19 @@ class DAFMoELayer(nn.Module):
             expert_outputs = expert_outputs + (alpha_k * preservation_num * mask_flat.unsqueeze(1))
 
             # (3) Categorical Preservation
-            cat_mask = (1 - mask_flat).long()
-            cat_indices = (r_flat.long() * cat_mask).squeeze(-1)
-            
-            # Offset for lookup: expert_index * total_cats + cat_index
-            device = h.device
-            expert_offsets = torch.arange(E, device=device) * self.total_cats
-            lookup_indices = cat_indices.unsqueeze(1) + expert_offsets.unsqueeze(0)
-            
-            flat_embeddings = self.omega_cat_emb.view(-1, D)
-            preservation_cat = F.embedding(lookup_indices, flat_embeddings)
-            
-            expert_outputs = expert_outputs + (alpha_k * preservation_cat * cat_mask.unsqueeze(1))
+            if self.total_cats > 0:
+                cat_mask = (1 - mask_flat).long()                         # [N,1]
+                if cat_mask.sum().item() > 0:                             # cat이 실제로 있을 때만
+                    cat_indices = (r_flat.long() * cat_mask).squeeze(-1)  # [N]
+
+                    device = h.device
+                    expert_offsets = torch.arange(E, device=device) * self.total_cats  # [E]
+                    lookup_indices = cat_indices.unsqueeze(1) + expert_offsets.unsqueeze(0)  # [N,E]
+
+                    flat_embeddings = self.omega_cat_emb.view(-1, D)      # [E*total_cats, D]
+                    preservation_cat = F.embedding(lookup_indices, flat_embeddings)     # [N,E,D]
+
+                    expert_outputs = expert_outputs + (alpha_k * preservation_cat * cat_mask.unsqueeze(1))
 
         # Aggregation (Equation 10)
         mask = gating_weights.view(B*S, E) # [N, E]

@@ -1,12 +1,12 @@
 # ==========================================
 # 🧠 Core Deep Learning (PyTorch)
 # ==========================================
-# 주의: CUDA 버전에 맞는 PyTorch 설치를 권장합니다.
-# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (또는 cu121)
+# Note: Install PyTorch that matches your CUDA version.
+# pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (or cu121)
 torch>=2.1.0
 torchvision
 torchaudio
-einops>=0.6.0         # Transformer 연산 최적화 (DAF-MoE 필수)
+einops>=0.6.0         # Transformer ops optimization (required for DAF-MoE)
 
 # ==========================================
 # 📊 Data Processing & Math
@@ -14,43 +14,43 @@ einops>=0.6.0         # Transformer 연산 최적화 (DAF-MoE 필수)
 numpy>=1.24.0
 pandas>=2.0.0
 scipy>=1.10.0
-scikit-learn>=1.2.0   # 데이터 전처리 및 평가지표 계산
+scikit-learn>=1.2.0   # Data preprocessing & evaluation metrics
 
 # ==========================================
-# 🌲 Tabular Benchmarks (NEW - 로컬 실험용)
+# 🌲 Tabular Benchmarks (NEW - Local Experiments)
 # ==========================================
-xgboost>=2.0.0        # GPU 히스토그램 기반 학습 지원
-catboost>=1.2.0       # 범주형 데이터 특화 모델 (GPU 지원)
-lightgbm>=4.0.0       # (선택) 비교군으로 자주 쓰임
+xgboost>=2.0.0        # Supports GPU histogram-based training
+catboost>=1.2.0       # Specialized for categorical features (GPU supported)
+lightgbm>=4.0.0       # (Optional) Common baseline model
 
 # ==========================================
 # 🔍 HPO & Experiment Tracking
 # ==========================================
-optuna>=3.0.0         # 하이퍼파라미터 최적화
-tensorboard>=2.13.0   # 학습 로그 시각화
-plotly>=5.0.0         # Optuna 결과 시각화 (Interactive)
-kaleido               # Plotly 이미지 저장용 (png export 등)
+optuna>=3.0.0         # Hyperparameter optimization
+tensorboard>=2.13.0   # Training log visualization
+plotly>=5.0.0         # Optuna visualization (interactive)
+kaleido               # Plotly image export (png, etc.)
 
 # ==========================================
 # 🎨 Interpretability & Visualization
 # ==========================================
-shap>=0.42.0          # 모델 해석 (SHAP Values)
+shap>=0.42.0          # Model interpretability (SHAP values)
 matplotlib>=3.7.0
 seaborn>=0.12.0
 
 # ==========================================
 # 🛠 Utilities & Environment
 # ==========================================
-pyyaml>=6.0           # Config 파일 로드
-tqdm>=4.65.0          # 진행률 표시 바
-python-dotenv>=1.0.0  # 환경변수 관리
-kaggle>=1.5.0         # 데이터셋 다운로드
-joblib>=1.3.0         # (NEW) Scikit-learn/XGB 모델 저장 및 병렬처리
-requests              # (NEW) 각종 API 통신용
+pyyaml>=6.0           # Config file loading
+tqdm>=4.65.0          # Progress bars
+python-dotenv>=1.0.0  # Environment variable management
+kaggle>=1.5.0         # Dataset download helper
+joblib>=1.3.0         # Model saving & parallelism for scikit-learn/XGB
+requests              # HTTP requests for APIs and downloads
 
 # ==========================================
-# 📓 Jupyter & Interactive (NEW - VS Code 연동용)
+# 📓 Jupyter & Interactive (NEW - VS Code Integration)
 # ==========================================
 jupyterlab
-ipykernel             # VS Code에서 커널 연결 시 필수
-ipywidgets            # tqdm을 노트북에서 예쁘게 볼 때 필수
+ipykernel             # Required for VS Code kernel connection
+ipywidgets            # Nice notebook progress bars (tqdm widgets)

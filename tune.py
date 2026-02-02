@@ -28,13 +28,20 @@ class TrainArgs:
     """
     Mock class to emulate argparse.Namespace for passing arguments to train_main directly.
     """
-    def __init__(self, config_path, gpu_ids="0", seed=42):
+    def __init__(self, config_path, gpu_ids="0", seed=42, result_dir="results/scores"):
         self.config = config_path
         self.gpu_ids = gpu_ids
         self.data_root = None
         self.seed = seed
         self.verbose = True 
-
+        self.result_dir = result_dir 
+        
+        self.use_raw_path = None
+        self.use_deep_path = None
+        self.use_dist_token = None
+        self.lambda_spec = None
+        self.lambda_repel = None
+        
 def suggest_params(trial, hpo_config):
     """Maps HPO config specification to Optuna trial suggestions."""
     params = {}
