@@ -95,5 +95,10 @@ class DAFConfig:
     use_deep_path: bool = True      # Transformation Path (Non-linear FFN)
     use_dist_token: bool = True     # Distributional Metadata Injection (m_j)
     
+    # ==========================================
+    # 8. TabM Specific Parameters
+    # ==========================================
+    k: int = 32                          # BatchEnsemble size (number of implicit submodels)
+
     # Result storage directory
     result_dir: str = "results/scores"

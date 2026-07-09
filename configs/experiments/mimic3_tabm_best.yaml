@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 208
+data_config_path: configs/datasets/mimic3.yaml
+dataset_name: mimic3
+dropout: 0.12429083242454103
+learning_rate: 0.000404414641336353
+model_name: tabm
+n_layers: 2
+optimize_metric: auprc
+out_dim: 1
+task_type: classification
+weight_decay: 0.026127254219501544

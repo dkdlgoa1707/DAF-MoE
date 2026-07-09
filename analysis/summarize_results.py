@@ -51,6 +51,7 @@ MODEL_NAME_MAP = {
     "ft_transformer": "FT-Transformer",
     "resnet": "ResNet",
     "mlp": "MLP",
+    "tabm": "TabM",
     "xgboost": "XGBoost",
     "catboost": "CatBoost"
 }

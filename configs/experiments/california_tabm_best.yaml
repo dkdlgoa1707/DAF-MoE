@@ -1,0 +1,11 @@
+d_token: 368
+data_config_path: configs/datasets/california.yaml
+dataset_name: california
+dropout: 0.032443360425861295
+learning_rate: 0.0008622870805664307
+model_name: tabm
+n_layers: 4
+optimize_metric: rmse
+out_dim: 1
+task_type: regression
+weight_decay: 0.0035371029953047313

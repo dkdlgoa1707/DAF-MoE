@@ -6,6 +6,7 @@ from .daf_moe.daf_moe_transformer import DAFMoETransformer
 from .baselines.ft_transformer import FTTransformerWrapper
 from .baselines.mlp import MLP
 from .baselines.resnet import TabularResNet
+from .baselines.tabm import TabMWrapper
 
 def create_model(config):
     """
@@ -34,6 +35,9 @@ def create_model(config):
         
     elif model_name == 'resnet':
         return TabularResNet(config)
+
+    elif model_name == 'tabm':
+        return TabMWrapper(config)
 
     # 3. GBDT Models (Handled separately in runners/run_trees.py)
     elif model_name in ['xgboost', 'catboost']:

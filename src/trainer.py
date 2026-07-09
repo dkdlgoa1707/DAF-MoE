@@ -70,10 +70,21 @@ class Trainer:
             
             # 2. Baselines: Standard Loss
             else:
-                if self.config.out_dim == 1:
-                     base_loss = self.criterion(logits, targets.float().view_as(logits))
+                logits_k = outputs.get('logits_k')
+                if logits_k is not None:
+                    # TabM paper: mean loss not loss of mean prediction
+                    B, k, out_dim = logits_k.shape
+                    if self.config.out_dim == 1:
+                        t = targets.float().view(B, 1, 1).expand(-1, k, -1)
+                        base_loss = self.criterion(logits_k, t)
+                    else:
+                        t = targets.long().view(B, 1).expand(-1, k).reshape(-1)
+                        base_loss = self.criterion(logits_k.reshape(-1, out_dim), t)
                 else:
-                     base_loss = self.criterion(logits, targets.long().view(-1))
+                    if self.config.out_dim == 1:
+                        base_loss = self.criterion(logits, targets.float().view_as(logits))
+                    else:
+                        base_loss = self.criterion(logits, targets.long().view(-1))
                 final_loss = base_loss + (outputs.get('aux_loss', 0) or 0)
             
             self.optimizer.zero_grad()

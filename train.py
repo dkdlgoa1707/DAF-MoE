@@ -16,6 +16,17 @@ Usage:
 
 import argparse
 import os
+import sys
+
+# Must be set before `import torch` so CUDA driver picks up the correct device.
+def _set_cuda_device_early():
+    for i, arg in enumerate(sys.argv):
+        if arg == '--gpu_ids' and i + 1 < len(sys.argv):
+            os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+            os.environ["CUDA_VISIBLE_DEVICES"] = sys.argv[i + 1]
+            return
+_set_cuda_device_early()
+
 import yaml
 import torch
 import torch.optim as optim
@@ -63,11 +74,7 @@ def main(args):
     seed_everything(args.seed)
     is_verbose = getattr(args, 'verbose', True)
 
-    # 2. Device Setup
-    if args.gpu_ids is not None:
-        os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-        os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_ids
-    
+    # 2. Device Setup (CUDA_VISIBLE_DEVICES already set at module load time)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
     # 3. Load Config

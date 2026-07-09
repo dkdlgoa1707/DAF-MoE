@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 208
+data_config_path: configs/datasets/higgs_small.yaml
+dataset_name: higgs_small
+dropout: 0.015501111452469438
+learning_rate: 0.000536188394699448
+model_name: tabm
+n_layers: 5
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.0001470791053478318

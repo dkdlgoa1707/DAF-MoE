@@ -3,7 +3,7 @@
 # ==========================================
 # Note: Install PyTorch that matches your CUDA version.
 # pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 (or cu121)
-torch>=2.1.0
+torch>=2.1.0,<2.6.0
 torchvision
 torchaudio
 einops>=0.6.0         # Transformer ops optimization (required for DAF-MoE)
@@ -15,6 +15,7 @@ numpy>=1.24.0
 pandas>=2.0.0
 scipy>=1.10.0
 scikit-learn>=1.2.0   # Data preprocessing & evaluation metrics
+scikit-posthocs>=0.8.0
 
 # ==========================================
 # 🌲 Tabular Benchmarks (NEW - Local Experiments)

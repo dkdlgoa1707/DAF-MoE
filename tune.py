@@ -101,6 +101,12 @@ if __name__ == "__main__":
     parser.add_argument('--seed', type=int, default=42, help="Random seed for the sampler")
     args = parser.parse_args()
 
+    # Set CUDA_VISIBLE_DEVICES BEFORE any torch/CUDA initialization.
+    # os.environ changes are ignored once the CUDA driver context is open,
+    # so this must happen at process start, before train_main() is ever called.
+    os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+    os.environ["CUDA_VISIBLE_DEVICES"] = args.gpu_ids
+
     # Load Configs
     with open(args.base_config, 'r') as f:
         base_config_dict = yaml.safe_load(f)

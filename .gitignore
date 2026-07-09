@@ -65,6 +65,13 @@ results/temp_hpo/
 configs/experiments_notyet/
 configs/temp_hpo/
 
+# Local clinical experiment configs
+configs/datasets/complications_*.yaml
+configs/datasets/mortality_30day.yaml
+configs/experiments/complications_*.yaml
+configs/experiments/mortality_30day_*.yaml
+runners/run_isoforest.py
+
 # ==========================
 # 8. Results 
 # ==========================
@@ -72,3 +79,14 @@ results/analysis_expert/*.pdf
 results/summarize_performance/*.pdf
 results/summarize_performance/*.csv
 results/summarize_performance/*.png
+results/scores/Complications *.json
+results/scores/Mortality 30day_*.json
+
+# Local clinical analysis outputs
+mortality_analysis/
+subgroup_analysis/
+
+# ==========================
+# 9. CLAUDE.md
+# ==========================
+CLAUDE.md

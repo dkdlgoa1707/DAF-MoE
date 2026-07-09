@@ -1,0 +1,32 @@
+# configs/hpo/tabm.yaml
+# Based on TabM paper (Gorishniy et al., ICLR 2025) Appendix hyperparameter space
+# Aligned with existing MLP/FT-Transformer optimization protocol
+
+n_layers:
+  type: "int"
+  low: 1
+  high: 8           
+
+d_token:             # Width (d_block in TabM paper)
+  type: "int"
+  low: 64
+  high: 384
+  step: 16           # MLP와 동일 구조
+
+# [Shared Optimization]
+learning_rate:
+  type: "float"
+  low: 3e-5
+  high: 1e-3
+  log: true
+
+weight_decay:
+  type: "float"
+  low: 1e-4
+  high: 1e-1
+  log: true
+
+dropout:
+  type: "float"
+  low: 0.0
+  high: 0.5

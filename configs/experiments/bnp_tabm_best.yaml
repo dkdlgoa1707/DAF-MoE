@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 64
+data_config_path: configs/datasets/bnp.yaml
+dataset_name: bnp
+dropout: 0.3044231479148573
+learning_rate: 3.096909610060308e-05
+model_name: tabm
+n_layers: 2
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.000312232862144312

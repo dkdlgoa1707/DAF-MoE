@@ -1,0 +1,12 @@
+batch_size: 512
+d_token: 96
+data_config_path: configs/datasets/allstate.yaml
+dataset_name: allstate
+dropout: 0.049455181000922104
+learning_rate: 0.0004959617561434724
+model_name: tabm
+n_layers: 3
+optimize_metric: rmse
+out_dim: 1
+task_type: regression
+weight_decay: 0.01483111610629474

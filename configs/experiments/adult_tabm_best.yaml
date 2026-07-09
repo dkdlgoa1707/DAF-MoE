@@ -1,0 +1,11 @@
+d_token: 64
+data_config_path: configs/datasets/adult.yaml
+dataset_name: adult
+dropout: 0.03535399186646197
+learning_rate: 0.0007448892556440489
+model_name: tabm
+n_layers: 6
+optimize_metric: acc
+out_dim: 1
+task_type: classification
+weight_decay: 0.044240161509025
