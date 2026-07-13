@@ -94,6 +94,18 @@ class DAFConfig:
     use_raw_path: bool = True       # Preservation Path (Raw Signal)
     use_deep_path: bool = True      # Transformation Path (Non-linear FFN)
     use_dist_token: bool = True     # Distributional Metadata Injection (m_j)
+
+    # ==========================================
+    # v1.5 Phase 1 experiment fields (default-off)
+    # ==========================================
+    use_loss_free_balancing: bool = False
+    use_film_gating: bool = False
+    use_lightweight_preservation: bool = False
+    use_ple_embedding: bool = False
+
+    bias_update_rate: float = 1e-3
+    ple_n_bins: int = 48
+    ple_boundaries: Optional[object] = None
     
     # ==========================================
     # 8. TabM Specific Parameters
