@@ -14,7 +14,7 @@ from src.models.daf_moe.daf_moe_transformer import DAFMoETransformer
 from src.models.daf_moe_v15.daf_moe_transformer import DAFMoETransformerV15
 
 
-DATASETS = ['california', 'adult', 'nhanes']
+DATASETS = ['california', 'adult', 'mimic4']
 SEED = 42
 ATOL = 1e-5
 RTOL = 1e-4
