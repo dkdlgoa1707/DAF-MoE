@@ -1,16 +1,21 @@
+import math
+
 import torch
 import torch.nn as nn
 
 
 class PLEEncoder(nn.Module):
-    """Piecewise linear encoder for numerical values."""
+    """Per-feature Piecewise Linear Encoder (Gorishniy, 2022)."""
     def __init__(self, boundaries, d_emb):
         super().__init__()
         boundaries = torch.as_tensor(boundaries, dtype=torch.float32)
         if boundaries.ndim != 2:
             raise ValueError("ple_boundaries must have shape [n_numerical, ple_n_bins + 1].")
+        self.n_num = boundaries.shape[0]
         self.T = boundaries.shape[1] - 1
-        self.proj = nn.Linear(self.T, d_emb)
+        self.weight = nn.Parameter(torch.empty(self.n_num, self.T, d_emb))
+        self.bias = nn.Parameter(torch.zeros(self.n_num, d_emb))
+        nn.init.kaiming_uniform_(self.weight, a=math.sqrt(5))
         self.register_buffer('boundaries', boundaries)
 
     def forward(self, values):
@@ -18,7 +23,7 @@ class PLEEncoder(nn.Module):
         right = self.boundaries[:, 1:].unsqueeze(0)
         denom = (right - left).clamp_min(1e-6)
         ratios = ((values.unsqueeze(-1) - left) / denom).clamp(0.0, 1.0)
-        return self.proj(ratios)
+        return torch.einsum('bnt,ntd->bnd', ratios, self.weight) + self.bias.unsqueeze(0)
 
 
 class DAFEmbeddingV15(nn.Module):
