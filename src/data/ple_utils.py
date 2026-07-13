@@ -1,54 +1,43 @@
 import numpy as np
-import pandas as pd
-from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import LabelEncoder
+import yaml
 
-from .preprocessor import DAFPreprocessor
+from pathlib import Path
 
 
-def compute_ple_boundaries(config, data_cfg):
+def _ensure_strictly_increasing(boundaries, eps=1e-6):
+    for idx in range(1, len(boundaries)):
+        if boundaries[idx] <= boundaries[idx - 1]:
+            boundaries[idx] = boundaries[idx - 1] + eps
+    return boundaries
+
+
+def compute_ple_boundaries(x_num_scaled: np.ndarray, n_bins: int) -> list:
     """
-    Computes PLE quantile boundaries from the same train split used by loader.py.
-    Boundaries are calculated on the normalized numerical channel consumed by v1.5.
+    Compute feature-wise quantile boundaries from z-scored training values.
     """
-    df = pd.read_csv(data_cfg['csv_path'], skipinitialspace=True)
-    num_cols = data_cfg.get('num_cols', [])
-    cat_cols = data_cfg.get('cat_cols', [])
-    target_col = data_cfg['target_col']
-
-    if len(num_cols) == 0:
+    if x_num_scaled.ndim != 2:
+        raise ValueError("x_num_scaled must have shape [n_samples, n_numerical].")
+    if n_bins < 1:
+        raise ValueError("n_bins must be at least 1.")
+    if x_num_scaled.shape[1] == 0:
         return []
 
-    if df[target_col].dtype == 'object' or df[target_col].dtype.name == 'category':
-        le = LabelEncoder()
-        df[target_col] = le.fit_transform(df[target_col])
-
-    X = df[num_cols + cat_cols]
-    y = df[target_col]
-
-    stratify_param = y if config.task_type == 'classification' else None
-    X_train, _, y_train, _ = train_test_split(
-        X, y, test_size=0.2, stratify=stratify_param, random_state=config.seed
-    )
-
-    preprocessor = DAFPreprocessor(num_cols, cat_cols, config)
-    preprocessor.fit(X_train)
-    X_num_train, _, _ = preprocessor.transform(X_train)
-    normalized_values = X_num_train[:, :, 0]
-
-    quantiles = np.linspace(0.0, 1.0, config.ple_n_bins + 1)
+    quantiles = np.linspace(0.0, 1.0, n_bins + 1)
     boundaries = []
-    for feature_idx in range(normalized_values.shape[1]):
-        feature_bounds = np.quantile(normalized_values[:, feature_idx], quantiles)
-        feature_bounds = np.maximum.accumulate(feature_bounds)
-        for idx in range(1, len(feature_bounds)):
-            if feature_bounds[idx] <= feature_bounds[idx - 1]:
-                feature_bounds[idx] = feature_bounds[idx - 1] + 1e-6
-        boundaries.append(feature_bounds.astype(float).tolist())
+    for feature_idx in range(x_num_scaled.shape[1]):
+        feature_bounds = np.quantile(x_num_scaled[:, feature_idx], quantiles).astype(float).tolist()
+        boundaries.append(_ensure_strictly_increasing(feature_bounds))
 
     return boundaries
 
 
-def inject_ple_boundaries(config, data_cfg):
-    config.ple_boundaries = compute_ple_boundaries(config, data_cfg)
-    return config
+def inject_ple_boundaries_into_yaml(base_yaml_path: str, boundaries: list, out_path: str):
+    """Inject PLE boundaries into a YAML config and write a runnable copy."""
+    with open(base_yaml_path, 'r', encoding='utf-8') as source:
+        config = yaml.safe_load(source)
+    config['ple_boundaries'] = boundaries
+
+    output_path = Path(out_path)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, 'w', encoding='utf-8') as target:
+        yaml.safe_dump(config, target, sort_keys=False)

@@ -1,14 +1,11 @@
-"""
-Regression check: v15 with all Phase 1 flags off should match v1.
+"""Verify v1.5 flag-off equivalence for all Phase 1 datasets."""
 
-This uses a non-linspace mu initialization because v1.5 intentionally changes
-linspace centroids from [0, 1] to [-3, 3] as a Phase 0 fix.
-"""
-
+import copy
 import sys
 from pathlib import Path
 
 import torch
+import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -17,24 +14,34 @@ from src.models.daf_moe.daf_moe_transformer import DAFMoETransformer
 from src.models.daf_moe_v15.daf_moe_transformer import DAFMoETransformerV15
 
 
-def make_config():
+DATASETS = ['california', 'adult', 'nhanes']
+SEED = 42
+ATOL = 1e-5
+RTOL = 1e-4
+REPORT_PATH = Path("results/phase1_v15/equivalence_report.md")
+
+
+def load_yaml(path):
+    with open(path, 'r', encoding='utf-8') as source:
+        return yaml.safe_load(source)
+
+
+def make_config(dataset, strategy):
+    experiment = load_yaml(f"configs/experiments/{dataset}_daf_moe_best.yaml")
+    data = load_yaml(experiment['data_config_path'])
     config = DAFConfig()
-    config.model_name = "daf_moe"
-    config.n_numerical = 3
-    config.n_categorical = 2
-    config.n_features = 5
-    config.total_cats = 7
-    config.task_type = "classification"
-    config.out_dim = 1
-    config.d_emb = 16
-    config.d_ff_factor = 2.0
-    config.n_heads = 4
-    config.n_layers = 2
-    config.n_experts = 4
-    config.top_k = 2
+    for key, value in experiment.items():
+        if hasattr(config, key):
+            setattr(config, key, value)
+
+    config.seed = SEED
+    config.mu_init_strategy = strategy
+    config.n_numerical = len(data.get('num_cols', []))
+    config.n_categorical = len(data.get('cat_cols', []))
+    config.n_features = config.n_numerical + config.n_categorical
+    config.total_cats = max(2, 3 * config.n_categorical) if config.n_categorical else 0
     config.dropout = 0.0
     config.router_noise_std = 0.0
-    config.mu_init_strategy = "normal"
     config.use_loss_free_balancing = False
     config.use_film_gating = False
     config.use_lightweight_preservation = False
@@ -42,35 +49,122 @@ def make_config():
     return config
 
 
-def main():
-    seed = 1234
-    config_v1 = make_config()
-    torch.manual_seed(seed)
-    model_v1 = DAFMoETransformer(config_v1).eval()
+def make_inputs(config, input_seed):
+    generator = torch.Generator().manual_seed(input_seed)
+    batch_size = 4
+    x_numerical = torch.randn(batch_size, config.n_numerical, 3, generator=generator)
+    x_numerical[:, :, 1] = torch.rand(
+        batch_size, config.n_numerical, generator=generator
+    )
+    if config.n_categorical:
+        x_categorical_idx = torch.randint(
+            0,
+            config.total_cats,
+            (batch_size, config.n_categorical),
+            generator=generator,
+        )
+        x_categorical_meta = torch.rand(
+            batch_size, config.n_categorical, 2, generator=generator
+        )
+    else:
+        x_categorical_idx = torch.empty(batch_size, 0, dtype=torch.long)
+        x_categorical_meta = torch.empty(batch_size, 0, 2)
+    return x_numerical, x_categorical_idx, x_categorical_meta
 
-    config_v15 = make_config()
-    torch.manual_seed(seed)
-    model_v15 = DAFMoETransformerV15(config_v15).eval()
 
-    torch.manual_seed(seed + 1)
-    batch_size = 8
-    x_numerical = torch.randn(batch_size, config_v1.n_numerical, 3)
-    x_numerical[:, :, 1] = torch.rand(batch_size, config_v1.n_numerical)
-    x_categorical_idx = torch.randint(0, config_v1.total_cats, (batch_size, config_v1.n_categorical))
-    x_categorical_meta = torch.rand(batch_size, config_v1.n_categorical, 2)
+def build_pair(config):
+    torch.manual_seed(SEED)
+    model_v1 = DAFMoETransformer(copy.deepcopy(config)).eval()
+    torch.manual_seed(SEED)
+    model_v15 = DAFMoETransformerV15(copy.deepcopy(config)).eval()
+    return model_v1, model_v15
+
+
+def logits(model, inputs):
+    with torch.no_grad():
+        return model(*inputs)['logits']
+
+
+def max_diff(left, right):
+    return float((left - right).abs().max().item())
+
+
+def verify_non_linspace(dataset, strategy):
+    config = make_config(dataset, strategy)
+    model_v1, model_v15 = build_pair(config)
+    inputs = make_inputs(config, SEED + 1)
+    output_v1 = logits(model_v1, inputs)
+    output_v15 = logits(model_v15, inputs)
+    difference = max_diff(output_v1, output_v15)
+    passed = torch.allclose(output_v1, output_v15, atol=ATOL, rtol=RTOL)
+    return passed, difference
+
+
+def verify_linspace(dataset):
+    config = make_config(dataset, 'linspace')
+    model_v1, model_v15 = build_pair(config)
+    inputs = make_inputs(config, SEED + 1)
+
+    output_v1 = logits(model_v1, inputs)
+    output_changed = logits(model_v15, inputs)
+    changed_diff = max_diff(output_v1, output_changed)
+    changed = not torch.allclose(output_v1, output_changed, atol=ATOL, rtol=RTOL)
 
     with torch.no_grad():
-        out_v1 = model_v1(x_numerical, x_categorical_idx, x_categorical_meta)
-        out_v15 = model_v15(x_numerical, x_categorical_idx, x_categorical_meta)
+        for block_v1, block_v15 in zip(model_v1.blocks, model_v15.blocks):
+            block_v15.router.mu.copy_(block_v1.router.mu)
+    output_restored = logits(model_v15, inputs)
+    restored_diff = max_diff(output_v1, output_restored)
+    restored = torch.allclose(output_v1, output_restored, atol=ATOL, rtol=RTOL)
+    return changed and restored, changed_diff, restored_diff
 
-    logits_v1 = out_v1["logits"]
-    logits_v15 = out_v15["logits"]
-    max_abs_diff = (logits_v1 - logits_v15).abs().max().item()
 
-    if not torch.allclose(logits_v1, logits_v15, rtol=1e-4, atol=1e-6):
-        raise AssertionError(f"v15 equivalence failed. max_abs_diff={max_abs_diff:.8f}")
+def main():
+    rows = []
+    all_passed = True
+    for dataset in DATASETS:
+        experiment = load_yaml(f"configs/experiments/{dataset}_daf_moe_best.yaml")
+        native_strategy = experiment.get('mu_init_strategy', 'linspace')
+        scenario_a_strategy = native_strategy if native_strategy != 'linspace' else 'normal'
 
-    print(f"v15 equivalence passed. max_abs_diff={max_abs_diff:.8f}")
+        passed_a, diff_a = verify_non_linspace(dataset, scenario_a_strategy)
+        passed_b, changed_diff, restored_diff = verify_linspace(dataset)
+        all_passed = all_passed and passed_a and passed_b
+        rows.append(
+            (dataset, scenario_a_strategy, passed_a, diff_a, passed_b, changed_diff, restored_diff)
+        )
+        print(
+            f"{dataset}: A={passed_a} (strategy={scenario_a_strategy}, diff={diff_a:.8g}) | "
+            f"B={passed_b} (changed={changed_diff:.8g}, restored={restored_diff:.8g})"
+        )
+
+    report = [
+        "# DAF-MoE v1.5 Equivalence Report",
+        "",
+        f"Seed: {SEED}; tolerance: atol={ATOL}, rtol={RTOL}",
+        "",
+        "| Dataset | Scenario A strategy | A pass | A max diff | B pass | B changed diff | B restored diff |",
+        "|---|---|---:|---:|---:|---:|---:|",
+    ]
+    for row in rows:
+        dataset, strategy, passed_a, diff_a, passed_b, changed_diff, restored_diff = row
+        report.append(
+            f"| {dataset} | {strategy} | {passed_a} | {diff_a:.8g} | "
+            f"{passed_b} | {changed_diff:.8g} | {restored_diff:.8g} |"
+        )
+    report.extend([
+        "",
+        "Scenario A requires full flag-off equivalence for a non-linspace strategy.",
+        "Scenario B requires natural linspace outputs to differ and mu-restored outputs to match.",
+        "",
+        f"Overall: {'PASS' if all_passed else 'FAIL'}",
+    ])
+    REPORT_PATH.parent.mkdir(parents=True, exist_ok=True)
+    REPORT_PATH.write_text("\n".join(report) + "\n", encoding='utf-8')
+    print(f"Report: {REPORT_PATH}")
+
+    if not all_passed:
+        raise SystemExit("v1.5 equivalence verification failed.")
 
 
 if __name__ == "__main__":

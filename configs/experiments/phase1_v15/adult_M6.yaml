@@ -1,10 +1,10 @@
-# M3: Measure the FiLM addition to loss-free routing (M2 vs M3).
+# M6: Isolate the PLE contribution (M0 vs M6).
 d_emb: 240
 d_ff_factor: 1.7957330594268006
 data_config_path: configs/datasets/adult.yaml
 dataset_name: adult
 dropout: 0.308371760964638
-lambda_bal: 0.0
+lambda_bal: 0.03699067404310253
 lambda_repel: 0.023285475703142572
 lambda_spec: 0.27262391814777487
 learning_rate: 0.00012911711369322868
@@ -16,7 +16,8 @@ optimize_metric: acc
 out_dim: 1
 task_type: classification
 weight_decay: 0.03930331745085877
-use_loss_free_balancing: true
-use_film_gating: true
+use_loss_free_balancing: false
+use_film_gating: false
 use_lightweight_preservation: false
-use_ple_embedding: false
+use_ple_embedding: true
+ple_n_bins: 48

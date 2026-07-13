@@ -23,7 +23,7 @@ def create_model(config):
     """
     model_name = config.model_name.lower()
 
-    if model_name == 'daf_moe_v15':
+    if model_name.startswith('daf_moe_v15'):
         return DAFMoETransformerV15(config)
     
     # 1. Proposed Model (DAF-MoE)

@@ -1,3 +1,4 @@
+# M5: Add PLE to the combined v1.5 changes (M4 vs M5).
 d_emb: 240
 d_ff_factor: 1.7957330594268006
 data_config_path: configs/datasets/adult.yaml
@@ -8,7 +9,7 @@ lambda_repel: 0.023285475703142572
 lambda_spec: 0.27262391814777487
 learning_rate: 0.00012911711369322868
 model_name: daf_moe_v15
-mu_init_strategy: linspace
+mu_init_strategy: random
 n_experts: 4
 n_layers: 4
 optimize_metric: acc

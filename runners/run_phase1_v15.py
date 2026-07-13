@@ -1,11 +1,7 @@
-"""
-DAF-MoE v1.5 Phase 1 runner.
+"""Run the 105 DAF-MoE v1.5 Phase 1 experiments."""
 
-Builds the 90-run command matrix. M5 runs receive seed-specific PLE boundaries
-through generated YAML files under results/phase1_v15/generated_configs/.
-"""
-
-import os
+import argparse
+import shutil
 import subprocess
 import sys
 import time
@@ -16,90 +12,152 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.configs.default_config import DAFConfig
-from src.data.ple_utils import compute_ple_boundaries
+from src.data.loader import get_dataloaders
+from src.data.ple_utils import compute_ple_boundaries, inject_ple_boundaries_into_yaml
 
 
 DATASETS = ['california', 'adult', 'nhanes']
 SEEDS = [42, 43, 44, 45, 46]
-VARIANTS = ['M0', 'M1', 'M2', 'M3', 'M4', 'M5']
+VARIANTS = ['M0', 'M1', 'M2', 'M3', 'M4', 'M5', 'M6']
 GPU_ID = "0"
-RESULT_DIR = "results/phase1_v15"
-GENERATED_CONFIG_DIR = Path(RESULT_DIR) / "generated_configs"
+RESULT_DIR = Path("results/phase1_v15")
+TMP_CONFIG_DIR = RESULT_DIR / "tmp_configs"
+
+VARIANT_SUMMARIES = {
+    "M0": "v1 baseline",
+    "M1": "lightweight preservation only",
+    "M2": "loss-free routing only",
+    "M3": "loss-free routing + FiLM",
+    "M4": "M3 + lightweight preservation",
+    "M5": "M4 + PLE",
+    "M6": "PLE only",
+}
 
 
 def load_yaml(path):
-    with open(path, 'r', encoding='utf-8') as f:
-        return yaml.safe_load(f)
+    with open(path, 'r', encoding='utf-8') as source:
+        return yaml.safe_load(source)
 
 
-def build_config(config_path, seed, variant):
-    if variant != 'M5':
-        return config_path
-
-    exp_cfg = load_yaml(config_path)
+def load_experiment_config(path, seed):
+    experiment = load_yaml(path)
     config = DAFConfig()
-    for key, value in exp_cfg.items():
+    for key, value in experiment.items():
         if hasattr(config, key):
             setattr(config, key, value)
     config.seed = seed
-
-    data_cfg = load_yaml(config.data_config_path)
-    exp_cfg['ple_boundaries'] = compute_ple_boundaries(config, data_cfg)
-
-    GENERATED_CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    generated_path = GENERATED_CONFIG_DIR / f"{exp_cfg['dataset_name']}_{variant}_seed{seed}.yaml"
-    with open(generated_path, 'w', encoding='utf-8') as f:
-        yaml.safe_dump(exp_cfg, f, sort_keys=False)
-    return str(generated_path)
+    return config
 
 
 def config_for(dataset, variant):
     if variant == 'M0':
-        return f"configs/experiments/{dataset}_daf_moe_best.yaml"
-    return f"configs/experiments/phase1_v15/{dataset}_{variant}.yaml"
+        return Path(f"configs/experiments/{dataset}_daf_moe_best.yaml")
+    return Path(f"configs/experiments/phase1_v15/{dataset}_{variant}.yaml")
 
 
-def run_experiment(dataset, variant, seed):
+def build_runtime_config(config_path, dataset, variant, seed):
+    if variant not in {'M5', 'M6'}:
+        return config_path
+
+    config = load_experiment_config(config_path, seed)
+    data_cfg = load_yaml(config.data_config_path)
+    train_loader, _, _ = get_dataloaders(config, data_cfg)
+    x_num_scaled = train_loader.dataset.X_num[:, :, 0].numpy()
+    boundaries = compute_ple_boundaries(x_num_scaled, config.ple_n_bins)
+
+    runtime_path = TMP_CONFIG_DIR / f"{dataset}_{variant}_seed{seed}.yaml"
+    inject_ple_boundaries_into_yaml(str(config_path), boundaries, str(runtime_path))
+    return runtime_path
+
+
+def archive_checkpoint(dataset, variant, seed, config_path):
+    config = load_experiment_config(config_path, seed)
+    data_cfg = load_yaml(config.data_config_path)
+    dataset_name = data_cfg.get('dataset_name', dataset)
+    source = Path("checkpoints") / f"{dataset_name}_{config.model_name}_seed{seed}_best.pth"
+    if not source.exists():
+        return None
+
+    archive_dir = RESULT_DIR / variant / "checkpoints"
+    archive_dir.mkdir(parents=True, exist_ok=True)
+    target = archive_dir / f"{dataset}_seed{seed}_best.pth"
+    shutil.copy2(source, target)
+    return target
+
+
+def run_experiment(dataset, variant, seed, gpu_id):
     config_path = config_for(dataset, variant)
-    if not os.path.exists(config_path):
-        print(f"Config not found: {config_path}")
-        return
-
-    runtime_config = build_config(config_path, seed, variant)
-    cmd = [
-        "python", "train.py",
-        "--config", runtime_config,
-        "--gpu_ids", GPU_ID,
-        "--seed", str(seed),
-        "--verbose",
-        "--result_dir", RESULT_DIR,
-    ]
+    if not config_path.exists():
+        return f"{dataset} | {variant} | seed {seed} | missing config: {config_path}"
 
     print(f"\n[Start] {dataset} | {variant} | seed {seed}")
-    print("Command:", " ".join(cmd))
-    result = subprocess.run(cmd, check=False)
+    try:
+        runtime_config = build_runtime_config(config_path, dataset, variant, seed)
+    except Exception as exc:
+        return f"{dataset} | {variant} | seed {seed} | preflight failed: {exc}"
+
+    variant_result_dir = RESULT_DIR / variant
+    variant_result_dir.mkdir(parents=True, exist_ok=True)
+    command = [
+        sys.executable,
+        "train.py",
+        "--config", str(runtime_config),
+        "--gpu_ids", gpu_id,
+        "--seed", str(seed),
+        "--verbose",
+        "--result_dir", str(variant_result_dir),
+    ]
+
+    print("Command:", " ".join(command))
+    result = subprocess.run(command, check=False)
     if result.returncode != 0:
-        print(f"[Fail] {dataset} | {variant} | seed {seed}")
+        return f"{dataset} | {variant} | seed {seed} | exit code {result.returncode}"
+
+    archived = archive_checkpoint(dataset, variant, seed, config_path)
+    if archived is None:
+        print(f"[Warn] checkpoint not found for {dataset} | {variant} | seed {seed}")
     else:
-        print(f"[Done] {dataset} | {variant} | seed {seed}")
+        print(f"[Checkpoint] {archived}")
+    print(f"[Done] {dataset} | {variant} | seed {seed}")
     time.sleep(1)
+    return None
+
+
+def write_failures(failures):
+    failure_path = RESULT_DIR / "failures.log"
+    contents = "\n".join(failures) if failures else "No failed runs."
+    failure_path.write_text(contents + "\n", encoding='utf-8')
+    return failure_path
 
 
 def main():
-    os.makedirs(RESULT_DIR, exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--gpu-id", default=GPU_ID)
+    args = parser.parse_args()
+
+    RESULT_DIR.mkdir(parents=True, exist_ok=True)
     total_runs = len(DATASETS) * len(VARIANTS) * len(SEEDS)
     print("Starting DAF-MoE v1.5 Phase 1")
     print(f"Datasets: {DATASETS}")
-    print(f"Variants: {VARIANTS}")
     print(f"Seeds: {SEEDS}")
     print(f"Total runs: {total_runs}")
-    print("Estimated time: depends on dataset/GPU; expect roughly the prior DAF-MoE runtime times 90.")
-    print(f"Save directory: {RESULT_DIR}")
+    print("Estimated time: approximately 105 times one dataset-specific DAF-MoE run.")
+    print("Variants:")
+    for variant in VARIANTS:
+        print(f"  {variant}: {VARIANT_SUMMARIES[variant]}")
 
+    failures = []
     for dataset in DATASETS:
         for variant in VARIANTS:
             for seed in SEEDS:
-                run_experiment(dataset, variant, seed)
+                failure = run_experiment(dataset, variant, seed, args.gpu_id)
+                if failure:
+                    failures.append(failure)
+                    print(f"[Fail] {failure}")
+
+    failure_path = write_failures(failures)
+    print(f"\nCompleted {total_runs - len(failures)}/{total_runs} runs.")
+    print(f"Failure log: {failure_path}")
 
 
 if __name__ == "__main__":

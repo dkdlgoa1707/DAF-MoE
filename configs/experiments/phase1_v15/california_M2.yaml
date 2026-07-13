@@ -1,3 +1,4 @@
+# M2: Isolate loss-free router balancing (M0 vs M2).
 d_emb: 96
 d_ff_factor: 2.2917575184387013
 data_config_path: configs/datasets/california.yaml
@@ -8,7 +9,7 @@ lambda_repel: 0.011396332771925498
 lambda_spec: 0.1412479184583438
 learning_rate: 0.0008273719384503577
 model_name: daf_moe_v15
-mu_init_strategy: linspace
+mu_init_strategy: normal
 n_experts: 8
 n_layers: 4
 optimize_metric: rmse

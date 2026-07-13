@@ -4,33 +4,14 @@ import torch.nn as nn
 
 class PLEEncoder(nn.Module):
     """Piecewise linear encoder for numerical values."""
-    def __init__(self, config):
+    def __init__(self, boundaries, d_emb):
         super().__init__()
-        self.n_numerical = config.n_numerical
-        self.n_bins = config.ple_n_bins
-        self.d_emb = config.d_emb
-        self.proj = nn.Linear(self.n_bins, self.d_emb)
-        self.register_buffer('boundaries', self._build_boundaries(config), persistent=False)
-
-    def _build_boundaries(self, config):
-        boundaries = getattr(config, 'ple_boundaries', None)
-        if boundaries is None:
-            raise ValueError("use_ple_embedding=True requires config.ple_boundaries.")
-
-        if isinstance(boundaries, dict):
-            values = list(boundaries.values())
-        else:
-            values = boundaries
-
-        tensor = torch.tensor(values, dtype=torch.float32)
-        if tensor.ndim != 2:
+        boundaries = torch.as_tensor(boundaries, dtype=torch.float32)
+        if boundaries.ndim != 2:
             raise ValueError("ple_boundaries must have shape [n_numerical, ple_n_bins + 1].")
-        if tensor.shape[0] != self.n_numerical or tensor.shape[1] != self.n_bins + 1:
-            raise ValueError(
-                f"ple_boundaries shape {tuple(tensor.shape)} does not match "
-                f"({self.n_numerical}, {self.n_bins + 1})."
-            )
-        return tensor
+        self.T = boundaries.shape[1] - 1
+        self.proj = nn.Linear(self.T, d_emb)
+        self.register_buffer('boundaries', boundaries)
 
     def forward(self, values):
         left = self.boundaries[:, :-1].unsqueeze(0)
@@ -52,7 +33,18 @@ class DAFEmbeddingV15(nn.Module):
         self.use_ple_embedding = getattr(config, 'use_ple_embedding', False)
 
         if self.use_ple_embedding:
-            self.ple_encoder = PLEEncoder(config)
+            boundaries = getattr(config, 'ple_boundaries', None)
+            if boundaries is None:
+                raise ValueError("use_ple_embedding=True requires config.ple_boundaries.")
+            if isinstance(boundaries, dict):
+                boundaries = list(boundaries.values())
+            expected_shape = (self.n_numerical, config.ple_n_bins + 1)
+            boundary_shape = tuple(torch.as_tensor(boundaries).shape)
+            if boundary_shape != expected_shape:
+                raise ValueError(
+                    f"ple_boundaries shape {boundary_shape} does not match {expected_shape}."
+                )
+            self.ple_encoder = PLEEncoder(boundaries, self.d_emb)
         else:
             self.numerical_proj = nn.Linear(3, self.d_emb)
 
