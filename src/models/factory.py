@@ -4,6 +4,7 @@ import torch.nn as nn
 # Models Import
 from .daf_moe.daf_moe_transformer import DAFMoETransformer
 from .daf_moe_v15.daf_moe_transformer import DAFMoETransformerV15
+from .daf_moe_v2.daf_moe_transformer import DAFMoETransformerV2
 from .baselines.ft_transformer import FTTransformerWrapper
 from .baselines.mlp import MLP
 from .baselines.resnet import TabularResNet
@@ -22,6 +23,9 @@ def create_model(config):
         nn.Module: The initialized PyTorch model.
     """
     model_name = config.model_name.lower()
+
+    if model_name.startswith('daf_moe_v2'):
+        return DAFMoETransformerV2(config)
 
     if model_name.startswith('daf_moe_v15'):
         return DAFMoETransformerV15(config)
