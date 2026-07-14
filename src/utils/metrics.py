@@ -84,4 +84,7 @@ class Evaluator:
             results['mae'] = mean_absolute_error(y_true_flat, y_pred_flat)
             results['r2'] = r2_score(y_true_flat, y_pred_flat) 
             
-        return results
+        return {
+            name: value.item() if isinstance(value, np.generic) else value
+            for name, value in results.items()
+        }
