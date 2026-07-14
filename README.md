@@ -14,6 +14,12 @@ This repository provides:
 * Automated scripts to **reproduce the main results** (15 random seeds).
 * **Comprehensive Analysis Suite:** Tools for expert visualization, noise robustness tests, statistical significance checks, and ablation summaries.
 
+## Version History
+
+- **v1 (KDD 2026 submission)**: Original architecture. Source: `src/models/daf_moe/`. Best configs: `configs/experiments/{dataset}_daf_moe_best.yaml`.
+- **v1.5 (Phase 1 exploration)**: Configurable ablation variants for architecture design exploration. Source: `src/models/daf_moe_v15/`. Phase 1 results: `results/phase1_v15/PHASE1_REPORT.md`.
+- **v2 (Phase 2, AAAI 2027 submission)**: Finalized architecture with FiLM-based Distribution-Guided Gating, per-feature PLE numerical embedding, lightweight dual-pathway expert, and entity-only categorical embedding. Source: `src/models/daf_moe_v2/`.
+
 ---
 
 ## 🛠️ 1. Installation
