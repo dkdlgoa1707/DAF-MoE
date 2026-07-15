@@ -26,7 +26,8 @@ class _PLREmbedding(nn.Module):
 
     def forward(self, values):
         periodic = torch.cos(2.0 * math.pi * values.unsqueeze(-1) * self.frequency)
-        return torch.einsum("bnh,nhd->bnd", periodic, self.weight) + self.bias
+        projected = torch.einsum("bnh,nhd->bnd", periodic, self.weight)
+        return F.relu(projected + self.bias)
 
 
 class _NTKLinear(nn.Module):

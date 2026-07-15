@@ -99,6 +99,19 @@ class ModernNCAWrapper(nn.Module):
 
     def _nca_prediction(self, query, candidates):
         distances = torch.cdist(query, candidates)
+        if candidates.shape[0] > 1:
+            nearest_distances, nearest_indices = distances.min(dim=1)
+            has_self = torch.isclose(
+                nearest_distances,
+                torch.zeros_like(nearest_distances),
+                atol=1e-8,
+                rtol=0.0,
+            )
+            rows = torch.arange(query.shape[0], device=query.device)[has_self]
+            self_mask = torch.zeros_like(distances, dtype=torch.bool)
+            self_mask[rows, nearest_indices[has_self]] = True
+            distances = distances.masked_fill(self_mask, torch.inf)
+
         if 0 < self.n_neighbors < candidates.shape[0]:
             distances, indices = distances.topk(self.n_neighbors, largest=False)
             labels = self.train_labels[indices]

@@ -137,12 +137,30 @@ class TabRWrapper(nn.Module):
             _, candidate_key = self._encode(
                 self.candidate_x_numerical, self.candidate_x_categorical
             )
-            n_context = min(self.n_candidates, candidate_key.shape[0])
+            n_candidates = candidate_key.shape[0]
+            n_context = min(self.n_candidates, n_candidates)
             if n_context <= 0:
                 raise ValueError("tabr_n_candidates must be positive.")
 
             distances = torch.cdist(query_key, candidate_key).square()
-            context_idx = distances.topk(n_context, largest=False).indices
+            if n_candidates > 1:
+                # Fetch one spare neighbour. When the nearest key is an exact
+                # train-row match, skip only that row and retain true duplicates.
+                n_context = min(n_context, n_candidates - 1)
+                nearest_distances, nearest_indices = distances.topk(
+                    n_context + 1, largest=False
+                )
+                has_self = torch.isclose(
+                    nearest_distances[:, 0],
+                    torch.zeros_like(nearest_distances[:, 0]),
+                    atol=1e-8,
+                    rtol=0.0,
+                )
+                positions = torch.arange(n_context, device=distances.device)
+                positions = positions.unsqueeze(0) + has_self.long().unsqueeze(1)
+                context_idx = nearest_indices.gather(1, positions)
+            else:
+                context_idx = distances.topk(n_context, largest=False).indices
             context_key = candidate_key[context_idx]
             similarities = -distances.gather(1, context_idx) / max(self.temperature, 1e-6)
             weights = self.context_dropout(F.softmax(similarities, dim=-1))

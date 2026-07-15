@@ -1,14 +1,18 @@
 """Verify Phase 2 baseline construction and forward contracts."""
 
 import sys
+import logging
 from pathlib import Path
 
 import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, Dataset
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.configs.default_config import DAFConfig
 from src.models.factory import create_model
+from src.trainer import Trainer
 
 
 BASELINES = [
@@ -77,6 +81,78 @@ def verify(model_name, task):
     return sum(parameter.numel() for parameter in model.parameters())
 
 
+class _ContextDataset(Dataset):
+    def __init__(self, size=8):
+        self.numerical = torch.randn(size, 2, 3)
+        self.categorical = torch.randint(0, 4, (size, 1))
+        self.categorical_meta = torch.rand(size, 1, 2)
+        self.targets = torch.randn(size)
+
+    def __len__(self):
+        return len(self.targets)
+
+    def __getitem__(self, index):
+        return {
+            "x_numerical": self.numerical[index],
+            "x_categorical_idx": self.categorical[index],
+            "x_categorical_meta": self.categorical_meta[index],
+        }, self.targets[index]
+
+
+class _ContextSpyModel(nn.Module):
+    def __init__(self):
+        super().__init__()
+        self.head = nn.Linear(1, 1)
+        self.candidate_calls = 0
+        self.context_calls = 0
+        self.context_rows = 0
+
+    def set_candidates(self, inputs, targets):
+        self.candidate_calls += 1
+        self.context_rows = len(targets)
+
+    def set_train_context(self, inputs, targets):
+        self.context_calls += 1
+        self.context_rows = len(targets)
+
+    def forward(self, x_numerical, **kwargs):
+        return {"logits": self.head(x_numerical[:, :1, 0]), "aux_loss": None}
+
+
+def verify_trainer_context_wiring():
+    config = DAFConfig(
+        model_name="context_spy",
+        task_type="regression",
+        out_dim=1,
+        epochs=1,
+        optimize_metric="rmse",
+    )
+    loader = DataLoader(_ContextDataset(), batch_size=4, shuffle=False)
+    model = _ContextSpyModel()
+    optimizer = torch.optim.SGD(model.parameters(), lr=1e-3)
+    trainer = Trainer(
+        model,
+        nn.MSELoss(),
+        optimizer,
+        config,
+        torch.device("cpu"),
+        logging.getLogger("verify_baselines"),
+        verbose=False,
+    )
+    trainer.fit(loader, loader)
+    assert model.candidate_calls == 1
+    assert model.context_calls == 1
+    assert model.context_rows == len(loader.dataset)
+
+    trainer.test(loader)
+    assert model.candidate_calls == 2
+    assert model.context_calls == 2
+    print(
+        "\n[trainer context wiring]\n"
+        "  fit/test set_candidates + set_train_context calls PASS"
+    )
+
+
 def main():
     print("=" * 68)
     print("Phase 2 Baseline Verification")
@@ -95,6 +171,12 @@ def main():
             except Exception as exc:
                 failures.append((model_name, task, exc))
                 print(f"  task={task:<10} FAIL: {exc}")
+
+    try:
+        verify_trainer_context_wiring()
+    except Exception as exc:
+        failures.append(("trainer", "context_wiring", exc))
+        print(f"\n[trainer context wiring]\n  FAIL: {exc}")
 
     print("\n" + "=" * 68)
     if failures:

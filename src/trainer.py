@@ -51,6 +51,46 @@ class Trainer:
         if self.verbose:
             os.makedirs("checkpoints", exist_ok=True)
 
+        self._retrieval_train_loader = None
+
+    def _get_retrieval_model(self):
+        return self.model.module if isinstance(self.model, nn.DataParallel) else self.model
+
+    def _wire_retrieval_context(self, train_loader):
+        """Load the fixed training split into retrieval-based baselines once."""
+        model = self._get_retrieval_model()
+        has_candidates = hasattr(model, 'set_candidates')
+        has_train_context = hasattr(model, 'set_train_context')
+        if not (has_candidates or has_train_context):
+            return
+
+        input_parts = {}
+        target_parts = []
+        for inputs, targets in train_loader:
+            for key, value in inputs.items():
+                input_parts.setdefault(key, []).append(value)
+            target_parts.append(targets)
+
+        if not target_parts:
+            raise ValueError("Cannot wire retrieval context from an empty train loader.")
+
+        context_inputs = {
+            key: torch.cat(parts, dim=0).to(self.device)
+            for key, parts in input_parts.items()
+        }
+        context_targets = torch.cat(target_parts, dim=0).to(self.device)
+
+        if has_candidates:
+            model.set_candidates(context_inputs, context_targets)
+            self.logger.info(
+                f"TabR retrieval candidates wired: {len(context_targets)} rows"
+            )
+        if has_train_context:
+            model.set_train_context(context_inputs, context_targets)
+            self.logger.info(
+                f"ModernNCA train context wired: {len(context_targets)} rows"
+            )
+
     def train_epoch(self, loader, epoch):
         self.model.train()
         total_loss = 0
@@ -149,6 +189,9 @@ class Trainer:
             self.logger.info(f"    🏆 New Best Model Saved (Seed {self.config.seed})! ({self.target_metric.upper()}: {self.best_metric:.4f})")
 
     def fit(self, train_loader, val_loader):
+        self._retrieval_train_loader = train_loader
+        self._wire_retrieval_context(train_loader)
+
         if self.verbose:
             self.logger.info(f"\n🔥 Start Training Loop (Seed: {self.config.seed})...")
             
@@ -163,8 +206,12 @@ class Trainer:
         
         return self.best_metric
 
-    def test(self, test_loader):
+    def test(self, test_loader, train_loader=None):
         """Loads the best checkpoint and performs final evaluation."""
+        context_loader = train_loader or self._retrieval_train_loader
+        if context_loader is not None:
+            self._wire_retrieval_context(context_loader)
+
         if not self.verbose: return {}
 
         load_path = f"checkpoints/{self.config.dataset_name}_{self.config.model_name}_seed{self.config.seed}_best.pth"
