@@ -23,6 +23,8 @@ scikit-posthocs>=0.8.0
 xgboost>=2.0.0        # Supports GPU histogram-based training
 catboost>=1.2.0       # Specialized for categorical features (GPU supported)
 lightgbm>=4.0.0       # (Optional) Common baseline model
+pytabkit>=1.0         # RealMLP reference implementation
+tabicl>=0.1           # TabICL pretrained foundation model
 
 # ==========================================
 # 🔍 HPO & Experiment Tracking
