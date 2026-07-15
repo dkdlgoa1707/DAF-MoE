@@ -9,6 +9,9 @@ from .baselines.ft_transformer import FTTransformerWrapper
 from .baselines.mlp import MLP
 from .baselines.resnet import TabularResNet
 from .baselines.tabm import TabMWrapper
+from .baselines.tabr import TabRWrapper
+from .baselines.modernnca import ModernNCAWrapper
+from .baselines.realmlp import RealMLPWrapper
 
 def create_model(config):
     """
@@ -46,6 +49,15 @@ def create_model(config):
 
     elif model_name == 'tabm':
         return TabMWrapper(config)
+
+    elif model_name == 'tabr':
+        return TabRWrapper(config)
+
+    elif model_name == 'modernnca':
+        return ModernNCAWrapper(config)
+
+    elif model_name == 'realmlp':
+        return RealMLPWrapper(config)
 
     # 3. GBDT Models (Handled separately in runners/run_trees.py)
     elif model_name in ['xgboost', 'catboost']:

@@ -112,5 +112,20 @@ class DAFConfig:
     # ==========================================
     k: int = 32                          # BatchEnsemble size (number of implicit submodels)
 
+    # ==========================================
+    # 9. Phase 2 Baseline Specific Parameters
+    # ==========================================
+    # TabR
+    tabr_n_candidates: int = 96
+    tabr_temperature: float = 1.0
+
+    # ModernNCA
+    nca_temperature: float = 1.0
+    nca_n_neighbors: int = -1
+
+    # RealMLP
+    realmlp_hidden_dim: int = 256
+    realmlp_n_layers: int = 3
+
     # Result storage directory
     result_dir: str = "results/scores"
