@@ -1,6 +1,8 @@
 import torch
 import torch.nn as nn
 
+from .realmlp import _PLREmbedding
+
 
 class LinearBatchEnsemble(nn.Module):
     """
@@ -87,9 +89,11 @@ class TabMWrapper(nn.Module):
         self.k = getattr(config, 'k', 32)
 
         # ── Feature Embedding (identical to mlp.py) ──────────────────────────
-        # Each numerical feature: scalar → d_emb
-        self.num_proj = nn.ModuleList(
-            [nn.Linear(1, self.d_emb) for _ in range(config.n_numerical)]
+        # PLR numerical embeddings used by the recommended TabM setup.
+        self.num_embedding = (
+            _PLREmbedding(config.n_numerical, out_dim=self.d_emb)
+            if config.n_numerical
+            else None
         )
         # Categorical features: index → d_emb (shared embedding table)
         self.cat_embed = nn.Embedding(config.total_cats + 1, self.d_emb)
@@ -117,10 +121,12 @@ class TabMWrapper(nn.Module):
         B = x_numerical.shape[0]
 
         # 1. Embed features (shared across all k members, same as mlp.py)
-        x_num_val = x_numerical[:, :, 0:1]  # drop P and gamma channels
-        x_n_emb = torch.stack(
-            [proj(x_num_val[:, i]) for i, proj in enumerate(self.num_proj)], dim=1
-        )  # [B, n_numerical, d_emb]
+        x_num_val = x_numerical[:, :, 0]  # drop P and gamma channels
+        x_n_emb = (
+            self.num_embedding(x_num_val)
+            if self.num_embedding is not None
+            else x_numerical.new_empty(B, 0, self.d_emb)
+        )
         x_c_emb = self.cat_embed(x_categorical_idx.long())  # [B, n_categorical, d_emb]
 
         # 2. Flatten into single vector and expand across k members

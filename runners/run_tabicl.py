@@ -5,6 +5,7 @@ repository's PyTorch training loop and does not perform gradient-based fitting.
 """
 
 import argparse
+import inspect
 import json
 import os
 import sys
@@ -12,8 +13,14 @@ import time
 from pathlib import Path
 
 import numpy as np
+import pandas as pd
 import yaml
-from sklearn.metrics import accuracy_score, average_precision_score, mean_squared_error
+from sklearn.metrics import (
+    accuracy_score,
+    average_precision_score,
+    mean_squared_error,
+    roc_auc_score,
+)
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -58,19 +65,51 @@ def load_config_and_data(dataset_name, seed):
 
 
 def to_flat_arrays(loader):
-    """Convert DAFDataset batches to the dense matrix expected by TabICL."""
-    features = []
+    """Convert DAFDataset batches while preserving categorical integer dtypes."""
+    numerical_parts = []
+    categorical_parts = []
     targets = []
     for inputs, target in loader:
-        numerical = inputs["x_numerical"][:, :, 0]
-        categorical = inputs["x_categorical_idx"].float()
-        features.append(
-            np.concatenate(
-                [numerical.numpy(), categorical.numpy()], axis=1
-            )
-        )
+        numerical_parts.append(inputs["x_numerical"][:, :, 0].numpy())
+        categorical_parts.append(inputs["x_categorical_idx"].numpy())
         targets.append(target.numpy())
-    return np.concatenate(features), np.concatenate(targets)
+
+    numerical = np.concatenate(numerical_parts)
+    categorical = np.concatenate(categorical_parts).astype(np.int64, copy=False)
+    columns = {
+        **{f"num_{i}": numerical[:, i] for i in range(numerical.shape[1])},
+        **{f"cat_{i}": categorical[:, i] for i in range(categorical.shape[1])},
+    }
+    frame = pd.DataFrame(columns)
+    categorical_features = list(
+        range(numerical.shape[1], numerical.shape[1] + categorical.shape[1])
+    )
+    return frame, np.concatenate(targets), categorical_features
+
+
+def fit_with_categorical_features(
+    model, x_train, y_train, x_test, categorical_features
+):
+    """Fit across TabICL API versions without losing categorical semantics."""
+    if categorical_features and "categorical_features" in inspect.signature(model.fit).parameters:
+        model.fit(
+            x_train,
+            y_train,
+            categorical_features=categorical_features,
+        )
+        return x_train, x_test
+
+    # TabICLv2 infers categorical columns from pandas dtypes instead of a fit
+    # argument. Category values remain integer-coded in both frames.
+    if categorical_features:
+        x_train = x_train.copy()
+        x_test = x_test.copy()
+        for index in categorical_features:
+            column = x_train.columns[index]
+            x_train[column] = x_train[column].astype("category")
+            x_test[column] = x_test[column].astype("category")
+    model.fit(x_train, y_train)
+    return x_train, x_test
 
 
 def evaluate_predictions(model, config, y_test, predictions, x_test):
@@ -79,11 +118,18 @@ def evaluate_predictions(model, config, y_test, predictions, x_test):
         value = mean_squared_error(y_test, predictions) ** 0.5
         return "rmse", float(value)
 
-    if metric_name == "auprc":
+    if metric_name in {"auprc", "auroc", "roc_auc"}:
         probabilities = model.predict_proba(x_test)
         if probabilities.shape[1] != 2:
-            raise ValueError("AUPRC evaluation currently requires binary classification.")
-        return "auprc", float(average_precision_score(y_test, probabilities[:, 1]))
+            raise ValueError(
+                f"{metric_name.upper()} evaluation currently requires binary classification."
+            )
+        positive_probabilities = probabilities[:, 1]
+        if metric_name == "auprc":
+            return "auprc", float(
+                average_precision_score(y_test, positive_probabilities)
+            )
+        return "auroc", float(roc_auc_score(y_test, positive_probabilities))
     return "acc", float(accuracy_score(y_test, predictions))
 
 
@@ -97,12 +143,15 @@ def run_dataset(dataset_name, seed, device, subsample=None):
 
     seed_everything(seed)
     config, (train_loader, _, test_loader) = load_config_and_data(dataset_name, seed)
-    x_train, y_train = to_flat_arrays(train_loader)
-    x_test, y_test = to_flat_arrays(test_loader)
+    x_train, y_train, categorical_features = to_flat_arrays(train_loader)
+    x_test, y_test, test_categorical_features = to_flat_arrays(test_loader)
+    if categorical_features != test_categorical_features:
+        raise ValueError("Train/test categorical feature positions do not match.")
 
     if subsample and len(x_train) > subsample:
         indices = np.random.RandomState(seed).permutation(len(x_train))[:subsample]
-        x_train, y_train = x_train[indices], y_train[indices]
+        x_train = x_train.iloc[indices].reset_index(drop=True)
+        y_train = y_train[indices]
         print(f"  Subsampled context to {len(x_train):,} rows")
 
     estimator_class = (
@@ -111,7 +160,13 @@ def run_dataset(dataset_name, seed, device, subsample=None):
     model = estimator_class(device=device, random_state=seed)
 
     start = time.time()
-    model.fit(x_train, y_train)
+    x_train, x_test = fit_with_categorical_features(
+        model,
+        x_train,
+        y_train,
+        x_test,
+        categorical_features,
+    )
     predictions = model.predict(x_test)
     elapsed = time.time() - start
     metric_name, metric_value = evaluate_predictions(
