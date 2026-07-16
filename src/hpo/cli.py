@@ -14,10 +14,10 @@ from src.hpo.engine import (
     TrialArtifactWriter,
     create_phase2_study,
     make_guarded_objective,
-    phase2_study_name,
     run_until_valid_complete,
     valid_complete_count,
 )
+from src.hpo.identity import build_study_identity, resolve_study_storage
 from src.hpo.schema import load_search_space
 from src.native.data import prepare_native_final
 from src.phase2_execution import (
@@ -76,7 +76,7 @@ def _device(name):
     return torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 
-def _best_config_payload(base_config, search_space, study, n_rows):
+def _best_config_payload(base_config, search_space, study, identity, n_rows):
     best_trial = study.best_trial
     resolved = best_trial.user_attrs.get("resolved_config")
     if resolved is None:
@@ -87,6 +87,12 @@ def _best_config_payload(base_config, search_space, study, n_rows):
         "model_name": search_space.model_name,
         "search_space_hash": search_space.schema_hash,
         "study_name": study.study_name,
+        "study_signature": identity.signature,
+        "study_signature_components": dict(identity.components),
+        "model_implementation_version": identity.components["model_implementation_version"],
+        "effective_regression_target_policy": identity.components[
+            "effective_regression_target_policy"
+        ],
         "best_trial_number": int(best_trial.number),
         "best_value": float(best_trial.value),
         "resolved_config": resolved,
@@ -103,12 +109,11 @@ def run_hpo(args):
     if args.seed != HPO_SEED:
         raise ValueError(f"HPO seed is fixed at {HPO_SEED}.")
     seed_everything(HPO_SEED)
-    study_name = phase2_study_name(raw.dataset_name, space.model_name)
-    storage = args.storage or f"sqlite:///results/phase2/hpo/{study_name}.db"
-    if storage.startswith("sqlite:///"):
-        Path(storage[len("sqlite:///"):]).parent.mkdir(parents=True, exist_ok=True)
+    identity = build_study_identity(raw, base, space)
+    study_name = identity.study_name
+    storage = resolve_study_storage(identity, args.storage)
     direction = "minimize" if base["optimize_metric"] == "rmse" else "maximize"
-    study = create_phase2_study(raw.dataset_name, space.model_name, direction, storage)
+    study = create_phase2_study(identity, direction, storage)
     artifact_writer = TrialArtifactWriter(args.artifact_root)
     device = _device(args.device)
 
@@ -134,11 +139,13 @@ def run_hpo(args):
         evaluator,
         n_rows=len(raw.features),
         artifact_writer=artifact_writer,
-        study_name=study_name,
+        study_identity=identity,
         task_type=base["task_type"],
     )
-    run_until_valid_complete(study, objective, target=args.complete_trials)
-    payload = _best_config_payload(base, space, study, len(raw.features))
+    run_until_valid_complete(
+        study, objective, target=args.complete_trials, identity=identity
+    )
+    payload = _best_config_payload(base, space, study, identity, len(raw.features))
     output = args.best_output or (
         f"configs/experiments/phase2/{space.model_name}/"
         f"{raw.dataset_name.lower().replace(' ', '_')}_best.yaml"
@@ -146,11 +153,11 @@ def run_hpo(args):
     _write_yaml(output, payload)
     print(
         f"HPO_COMPLETE study={study.study_name} "
-        f"valid_complete={valid_complete_count(study)} best={output}"
+        f"valid_complete={valid_complete_count(study, identity)} best={output}"
     )
 
 
-def _resolved_for_final(args, space, task_type, n_rows):
+def _resolved_for_final(args, space, task_type, n_rows, identity):
     if space.model_name == "tabicl":
         if args.best_config:
             raise ValueError("TabICLv2 must not receive an HPO best config.")
@@ -166,12 +173,16 @@ def _resolved_for_final(args, space, task_type, n_rows):
         raise ValueError("Best config search-space hash mismatch.")
     if payload.get("model_name") != space.model_name:
         raise ValueError("Best config model_name mismatch.")
+    if payload.get("study_signature") != identity.signature:
+        raise ValueError("Best config study signature mismatch.")
+    if payload.get("study_signature_components") != dict(identity.components):
+        raise ValueError("Best config study signature components mismatch.")
     resolved = payload.get("resolved_config", {})
     space.validate_resolved(resolved, n_rows=n_rows, task_type=task_type)
     return resolved
 
 
-def _resume_manifest(raw, base, space, resolved, seed):
+def _resume_manifest(raw, base, space, resolved, seed, identity):
     if space.model_name in NATIVE_MODELS:
         prepared = prepare_native_final(
             raw, space.model_name, base["task_type"], seed=seed
@@ -194,12 +205,16 @@ def _resume_manifest(raw, base, space, resolved, seed):
         resolved,
         space.schema_hash,
         seed,
+        study_identity=identity,
     )
 
 
 def run_final(args):
     base, space, raw = _load_inputs(args.base_config, args.search_space)
-    resolved = _resolved_for_final(args, space, base["task_type"], len(raw.features))
+    identity = build_study_identity(raw, base, space)
+    resolved = _resolved_for_final(
+        args, space, base["task_type"], len(raw.features), identity
+    )
     seeds = tuple(args.seeds or FINAL_EVALUATION_SEEDS)
     invalid = sorted(set(seeds).difference(FINAL_EVALUATION_SEEDS))
     if invalid:
@@ -214,7 +229,9 @@ def run_final(args):
             / space.model_name
             / f"seed{seed}.json"
         )
-        resume_manifest = _resume_manifest(raw, base, space, resolved, seed)
+        resume_manifest = _resume_manifest(
+            raw, base, space, resolved, seed, identity
+        )
         if reusable_result(result_path, resume_manifest):
             print(f"RESUME seed={seed} path={result_path}")
             continue

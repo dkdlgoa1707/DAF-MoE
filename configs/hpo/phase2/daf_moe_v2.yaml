@@ -1,4 +1,4 @@
-protocol_version: phase2-v1
+protocol_version: phase2-v2
 model_name: daf_moe_v2
 rank_included: true
 fixed:

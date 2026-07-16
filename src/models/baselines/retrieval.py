@@ -68,35 +68,56 @@ class OneHotWithUnknownIgnored(nn.Module):
 class CandidateStore:
     """Train-only candidate tensors retained on CPU and transferred by chunk."""
 
-    def __init__(self, inputs, targets):
+    def __init__(self, inputs, targets, device="cpu"):
         if not targets.numel():
             raise ValueError("Retrieval candidate store cannot be empty.")
         row_ids = inputs.get("row_ids")
         if row_ids is None:
             row_ids = torch.arange(len(targets), dtype=torch.long)
+        device = torch.device(device)
         self.inputs = {
-            name: value.detach().to("cpu").contiguous()
+            name: value.detach().to(device).contiguous()
             for name, value in inputs.items()
             if name != "row_ids"
         }
-        self.targets = targets.detach().to("cpu").contiguous().reshape(-1)
-        self.row_ids = row_ids.detach().to("cpu").long().contiguous().reshape(-1)
+        self.targets = targets.detach().to(device).contiguous().reshape(-1)
+        self.row_ids = row_ids.detach().to(device).long().contiguous().reshape(-1)
         if len(self.targets) != len(self.row_ids):
             raise ValueError("Candidate targets and row IDs must have equal length.")
         if any(len(value) != len(self.targets) for value in self.inputs.values()):
             raise ValueError("All candidate input tensors must have equal length.")
         if self.row_ids.unique().numel() != len(self.row_ids):
             raise ValueError("Train candidate row IDs must be unique.")
+        self._row_id_to_position = {
+            int(row_id): index
+            for index, row_id in enumerate(self.row_ids.detach().cpu().tolist())
+        }
 
     def __len__(self):
         return len(self.targets)
+
+    def contains_any_row_ids(self, row_ids):
+        return any(
+            int(row_id) in self._row_id_to_position
+            for row_id in row_ids.detach().cpu().tolist()
+        )
+
+    def positions_for_row_ids(self, row_ids):
+        try:
+            positions = [
+                self._row_id_to_position[int(row_id)]
+                for row_id in row_ids.detach().cpu().tolist()
+            ]
+        except KeyError as exc:
+            raise ValueError(f"Query row ID {exc.args[0]} is not in train candidates.") from exc
+        return torch.tensor(positions, dtype=torch.long)
 
     @property
     def provenance(self):
         return {
             "candidate_count": len(self),
-            "row_id_hash": stable_hash(self.row_ids.numpy()),
-            "storage_device": "cpu",
+            "row_id_hash": stable_hash(self.row_ids.detach().cpu().numpy()),
+            "storage_device": self.row_ids.device.type,
         }
 
     def iter_chunks(self, chunk_size, indices=None):

@@ -10,6 +10,7 @@ from .dataset import DAFDataset
 from .phase2_dataset import Phase2TensorDataset
 from .provenance import build_run_manifest
 from .splits import RawDataset, RawSplitRegistry, TrainOnlyTargetEncoder
+from src.phase2_protocol import resolve_target_policy
 
 
 @dataclass(frozen=True)
@@ -64,7 +65,21 @@ def _fit_components(raw_dataset, train_partition, config):
     if hasattr(adapter, "apply_to_config"):
         adapter.apply_to_config(config)
 
-    regression_policy = getattr(config, "regression_target_policy", "identity")
+    target_policy = resolve_target_policy(config.model_name, config.task_type)
+    regression_policy = "standardize" if target_policy == "standardize" else "identity"
+    explicit_fields = getattr(config, "explicit_fields", frozenset())
+    configured_policy = (
+        getattr(config, "regression_target_policy", None)
+        if "regression_target_policy" in explicit_fields
+        else None
+    )
+    if configured_policy not in {None, regression_policy, target_policy}:
+        raise ValueError(
+            "Configured regression_target_policy conflicts with the Phase 2 protocol: "
+            f"configured={configured_policy}, effective={target_policy}."
+        )
+    config.regression_target_policy = regression_policy
+    config.effective_target_policy = target_policy
     target_encoder = TrainOnlyTargetEncoder(
         config.task_type, regression_policy=regression_policy
     ).fit(train_partition.target)
@@ -93,6 +108,8 @@ def prepare_phase2_hpo(raw_dataset: RawDataset, config) -> PreparedHPOData:
         schema_hash=raw_dataset.schema_hash,
         split_hash=partitions.split_hash,
         adapter=adapter,
+        target_encoder=target_encoder,
+        target_policy=config.effective_target_policy,
         seed=config.seed,
         subsample_size=getattr(config, "subsample", None),
         missing_counts={
@@ -127,6 +144,8 @@ def prepare_phase2_final(raw_dataset: RawDataset, config) -> PreparedFinalData:
         schema_hash=raw_dataset.schema_hash,
         split_hash=partitions.split_hash,
         adapter=adapter,
+        target_encoder=target_encoder,
+        target_policy=config.effective_target_policy,
         seed=config.seed,
         subsample_size=getattr(config, "subsample", None),
         missing_counts={

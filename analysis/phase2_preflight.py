@@ -31,6 +31,7 @@ from src.data.adapters import (  # noqa: E402
     TabRAdapter,
 )
 from src.hpo.schema import load_search_space  # noqa: E402
+from src.models.baselines.faiss_search import FAISS_DEPENDENCY  # noqa: E402
 from src.native.dependencies import DEPENDENCIES, dependency_report  # noqa: E402
 from src.phase2_execution import NATIVE_MODELS  # noqa: E402
 from src.phase2_protocol import (  # noqa: E402
@@ -51,6 +52,9 @@ TUNABLE_METHODS = tuple(
 ALL_METHODS = MAIN_METHODS + SECONDARY_METHODS
 SEARCH_ROOT = ROOT / "configs/hpo/phase2"
 BASE_ROOT = ROOT / "configs/experiments/phase2/base"
+RETRIEVAL_SCALE_REPORT = (
+    ROOT / "results/phase2/scale_smoke/reports/retrieval_scale_report.json"
+)
 
 
 def _read_yaml(path):
@@ -274,13 +278,66 @@ def _check_dependencies(errors, checks):
             )
     checks["native_dependencies"] = native
 
+    faiss_required = FAISS_DEPENDENCY.split("==", 1)[1]
+    faiss_installed = _installed_version("faiss-gpu-cu12")
+    checks["faiss"] = {
+        "required": faiss_required,
+        "installed": faiss_installed,
+    }
+    if faiss_installed != faiss_required:
+        errors.append(
+            f"FAISS pin mismatch: installed={faiss_installed}, "
+            f"required={faiss_required}."
+        )
+
     requirements = (ROOT / "requirements.txt").read_text(encoding="utf-8")
-    required_lines = ["optuna==4.9.0"] + [
+    required_lines = ["optuna==4.9.0", FAISS_DEPENDENCY] + [
         spec.requirement for spec in DEPENDENCIES.values()
     ]
     for requirement in required_lines:
         if requirement not in requirements:
             errors.append(f"requirements.txt is missing exact pin: {requirement}")
+
+
+def _check_retrieval_scale(errors, checks):
+    relative_path = str(RETRIEVAL_SCALE_REPORT.relative_to(ROOT))
+    if not RETRIEVAL_SCALE_REPORT.is_file():
+        checks["retrieval_scale"] = {
+            "report": relative_path,
+            "decision": "MISSING",
+        }
+        errors.append(
+            "Retrieval scale report is missing; TabR/ModernNCA production HPO "
+            "must remain blocked."
+        )
+        return
+    try:
+        report = json.loads(RETRIEVAL_SCALE_REPORT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        errors.append(f"Invalid retrieval scale report: {exc}")
+        return
+    decision = report.get("decision")
+    blockers = list(report.get("blockers", []))
+    checks["retrieval_scale"] = {
+        "report": relative_path,
+        "decision": decision,
+        "protocol_version": report.get("protocol_version"),
+        "blockers": blockers,
+        "production_experiments_started": report.get(
+            "production_experiments_started"
+        ),
+    }
+    if report.get("protocol_version") != PROTOCOL_VERSION:
+        errors.append(
+            "Retrieval scale report protocol does not match the active protocol."
+        )
+    if report.get("production_experiments_started") is not False:
+        errors.append(
+            "Retrieval scale report does not confirm production experiments stayed off."
+        )
+    if decision != "READY_FOR_HPO":
+        detail = "; ".join(blockers) if blockers else "no blocker detail recorded"
+        errors.append(f"Retrieval scale gate is {decision}: {detail}")
 
 
 def _run_command(command):
@@ -365,6 +422,7 @@ def main(argv=None):
     _check_configs(errors, checks)
     _check_routing(errors, checks)
     _check_dependencies(errors, checks)
+    _check_retrieval_scale(errors, checks)
     launch_plan, launch_count = write_launch_plan(args.launch_plan)
     expected_count = len(DATASETS) * (2 * len(TUNABLE_METHODS) + 1)
     if launch_count != expected_count:

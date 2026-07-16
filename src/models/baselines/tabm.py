@@ -77,18 +77,30 @@ class UpdatedPiecewiseLinearEmbedding(nn.Module):
 
 
 class MiniEnsembleAffine(nn.Module):
-    """The only non-shared backbone transform in official TabM-mini."""
+    """TabM-mini affine with original-feature chunk initialization.
 
-    def __init__(self, k, d_in, initialization):
+    Chunk semantics are adapted from `tabm.init_scaling_` at commit
+    28e47ae301c92ec37787dde1ce923a0793f405b4 (Apache-2.0).
+    """
+
+    def __init__(self, k, feature_chunks, initialization):
         super().__init__()
-        self.weight = nn.Parameter(torch.empty(k, d_in))
-        if initialization == "random-signs":
-            with torch.no_grad():
-                self.weight.bernoulli_(0.5).mul_(2).add_(-1)
-        elif initialization == "normal":
-            nn.init.normal_(self.weight)
-        else:
+        self.feature_chunks = tuple(int(width) for width in feature_chunks)
+        if not self.feature_chunks or any(width <= 0 for width in self.feature_chunks):
+            raise ValueError("TabM feature chunks must be non-empty and positive.")
+        self.weight = nn.Parameter(torch.empty(k, sum(self.feature_chunks)))
+        if initialization not in {"random-signs", "normal"}:
             raise ValueError(f"Unknown TabM affine initialization: {initialization}")
+        with torch.no_grad():
+            start = 0
+            for width in self.feature_chunks:
+                scalar = torch.empty(k, 1)
+                if initialization == "random-signs":
+                    scalar.bernoulli_(0.5).mul_(2).add_(-1)
+                else:
+                    scalar.normal_()
+                self.weight[:, start : start + width] = scalar
+                start += width
 
     def forward(self, x):
         return x.unsqueeze(1) * self.weight.unsqueeze(0)
@@ -149,11 +161,15 @@ class _TabMMiniBase(nn.Module):
                 boundaries,
                 d_embedding,
             )
-            d_num = self.num_embedding.output_dim
+            numerical_chunk_width = d_embedding + 1
         else:
-            d_num = n_numerical
+            numerical_chunk_width = 2
 
-        d_in = d_num + n_numerical + self.categorical.output_dim
+        feature_chunks = (
+            [numerical_chunk_width] * n_numerical
+            + list(self.categorical.feature_widths)
+        )
+        d_in = sum(feature_chunks)
         if d_in <= 0:
             raise ValueError("TabM requires at least one input feature.")
         d_block = resolve_width(config)
@@ -162,7 +178,7 @@ class _TabMMiniBase(nn.Module):
             raise ValueError("TabM n_layers must be positive.")
         self.affine = MiniEnsembleAffine(
             self.k,
-            d_in,
+            feature_chunks,
             "normal" if self.use_ple else "random-signs",
         )
         self.blocks = nn.ModuleList(
@@ -186,13 +202,23 @@ class _TabMMiniBase(nn.Module):
         parts = []
         if x_numerical_values.shape[1]:
             numerical = (
-                x_numerical_values
+                x_numerical_values.unsqueeze(-1)
                 if self.num_embedding is None
-                else self.num_embedding(x_numerical_values).flatten(1)
+                else self.num_embedding(x_numerical_values)
             )
-            parts.extend([numerical, x_numerical_missing])
+            for index in range(numerical.shape[1]):
+                parts.append(
+                    torch.cat(
+                        [
+                            numerical[:, index],
+                            x_numerical_missing[:, index : index + 1],
+                        ],
+                        dim=-1,
+                    )
+                )
         if self.categorical.cardinalities:
-            parts.append(self.categorical(x_categorical_idx.long()))
+            categorical = self.categorical(x_categorical_idx.long())
+            parts.extend(categorical.split(self.categorical.feature_widths, dim=-1))
         return torch.cat(parts, dim=-1)
 
     def forward(

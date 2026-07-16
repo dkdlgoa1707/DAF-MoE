@@ -93,6 +93,8 @@ class FinalPartitions:
 class TrainOnlyTargetEncoder:
     """Fit class mappings or regression transforms using the train target only."""
 
+    version = "phase2-target-v2"
+
     def __init__(self, task_type: str, regression_policy: str = "identity"):
         if task_type not in {"classification", "regression"}:
             raise ValueError(f"Unsupported task_type: {task_type}")
@@ -103,6 +105,7 @@ class TrainOnlyTargetEncoder:
         self.class_mapping = None
         self.mean = 0.0
         self.std = 1.0
+        self.std_fallback = False
 
     def fit(self, target: pd.Series):
         if target.isna().any():
@@ -112,10 +115,34 @@ class TrainOnlyTargetEncoder:
             self.class_mapping = {value: index for index, value in enumerate(classes)}
         elif self.regression_policy == "standardize":
             values = target.to_numpy(dtype=np.float64)
+            if not np.isfinite(values).all():
+                raise ValueError("Regression target contains nonfinite values.")
             self.mean = float(values.mean())
             std = float(values.std(ddof=0))
-            self.std = std if np.isfinite(std) and std > 0.0 else 1.0
+            self.std_fallback = not (np.isfinite(std) and std > 0.0)
+            self.std = 1.0 if self.std_fallback else std
         return self
+
+    def state_dict(self):
+        mapping = None
+        if self.class_mapping is not None:
+            mapping = sorted(
+                ((str(key), int(value)) for key, value in self.class_mapping.items()),
+                key=lambda item: item[1],
+            )
+        return {
+            "version": self.version,
+            "task_type": self.task_type,
+            "regression_policy": self.regression_policy,
+            "class_mapping": mapping,
+            "mean": self.mean if self.task_type == "regression" else None,
+            "std": self.std if self.task_type == "regression" else None,
+            "std_fallback": self.std_fallback,
+        }
+
+    @property
+    def state_hash(self):
+        return _stable_hash(self.state_dict())
 
     def transform(self, target: pd.Series) -> np.ndarray:
         if self.task_type == "classification":

@@ -1,7 +1,7 @@
-"""Full TabR with CPU-backed exact retrieval.
+"""Full TabR with the official exact FAISS retrieval semantics.
 
-Architecture reference: yandex-research/tabular-dl-tabr, mirrored by TALENT
-commit 08301d670a7c854bcf3a73298763484ba58eecdb.
+Architecture and search reference: yandex-research/tabular-dl-tabr commit
+17baa9082506f8e7a0f8d11bb1e08212926a1507 (MIT license).
 """
 
 import math
@@ -10,12 +10,8 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .retrieval import (
-    CandidateStore,
-    OneHotWithUnknownIgnored,
-    PLREmbeddingsLite,
-    streaming_topk,
-)
+from .faiss_search import ExactFaissL2Search
+from .retrieval import CandidateStore, OneHotWithUnknownIgnored, PLREmbeddingsLite
 
 
 def _make_block(d_main, d_block, dropout0, dropout1, prenorm):
@@ -37,7 +33,10 @@ def _make_block(d_main, d_block, dropout0, dropout1, prenorm):
 class TabRWrapper(nn.Module):
     """ICLR 2024 full TabR, including encoder, retrieval mixer, and predictor."""
 
-    upstream_reference = "TALENT@08301d670a7c854bcf3a73298763484ba58eecdb"
+    upstream_reference = (
+        "yandex-research/tabular-dl-tabr@"
+        "17baa9082506f8e7a0f8d11bb1e08212926a1507"
+    )
 
     def __init__(self, config):
         super().__init__()
@@ -125,6 +124,13 @@ class TabRWrapper(nn.Module):
             nn.Linear(d_main, self.out_dim),
         )
         self.candidate_store = None
+        self.search_backend = ExactFaissL2Search(
+            measure_performance=bool(
+                getattr(config, "retrieval_measure_performance", False)
+            )
+        )
+        self.last_searched_query_count = 0
+        self.last_effective_candidate_count = 0
         self._reset_label_encoder()
 
     def _reset_label_encoder(self):
@@ -136,13 +142,33 @@ class TabRWrapper(nn.Module):
             nn.init.uniform_(self.label_encoder.weight, -1.0, 1.0)
 
     def set_candidates(self, inputs, targets):
-        self.candidate_store = CandidateStore(inputs, targets)
+        self.candidate_store = CandidateStore(
+            inputs, targets, device=next(self.parameters()).device
+        )
 
     def clear_candidates(self):
         self.candidate_store = None
 
     def candidate_provenance(self):
-        return None if self.candidate_store is None else self.candidate_store.provenance
+        if self.candidate_store is None:
+            return None
+        return {
+            **self.candidate_store.provenance,
+            "upstream_reference": self.upstream_reference,
+            "retrieval_backend": "faiss",
+            "search_mode": "exact",
+            "index_type": self.search_backend.index_type,
+            "refresh_policy": "candidate_keys_and_index_every_forward",
+            "dependency": "faiss-gpu-cu12",
+            "dependency_version": self.search_backend.dependency_version,
+            "index_refresh_count": self.search_backend.refresh_count,
+            "index_refresh_seconds": self.search_backend.total_index_refresh_seconds,
+            "search_seconds": self.search_backend.total_search_seconds,
+            "total_query_count": self.search_backend.total_query_count,
+            "queries_per_second": self.search_backend.queries_per_second,
+            "last_query_count": self.last_searched_query_count,
+            "last_effective_candidate_count": self.last_effective_candidate_count,
+        }
 
     def _feature_vector(self, inputs):
         values = inputs["x_numerical_values"]
@@ -166,18 +192,31 @@ class TabRWrapper(nn.Module):
             return self.label_encoder(labels.float().unsqueeze(-1))
         return self.label_encoder(labels.long())
 
+    def _candidate_keys_for_search(self, device):
+        keys = []
+        with torch.no_grad():
+            for _, cpu_inputs, _, _ in self.candidate_store.iter_chunks(
+                self.candidate_chunk_size
+            ):
+                inputs = {name: value.to(device) for name, value in cpu_inputs.items()}
+                keys.append(self._encode(inputs)[1])
+        return torch.cat(keys, dim=0)
+
     def _retrieve(self, query_key, query_row_ids):
         if self.candidate_store is None:
             raise RuntimeError("TabR training candidates have not been set.")
-        width = min(self.context_size, len(self.candidate_store))
-        distances, indices = streaming_topk(
+        overlaps = False
+        if query_row_ids is not None:
+            overlaps = self.candidate_store.contains_any_row_ids(query_row_ids)
+        available = len(self.candidate_store) - (1 if overlaps else 0)
+        width = min(self.context_size, available)
+        candidate_keys = self._candidate_keys_for_search(query_key.device)
+        _, indices = self.search_backend.search(
             query_key,
-            query_row_ids,
-            self.candidate_store,
-            lambda chunk: self._encode(chunk)[1],
+            candidate_keys,
             width,
-            self.candidate_chunk_size,
-            squared=True,
+            query_row_ids=query_row_ids,
+            candidate_row_ids=self.candidate_store.row_ids,
         )
         selected_inputs, selected_labels, _ = self.candidate_store.gather(
             indices, query_key.device
@@ -195,6 +234,8 @@ class TabRWrapper(nn.Module):
             - context_key.square().sum(-1)
         )
         weights = F.softmax(similarities, dim=-1)
+        self.last_searched_query_count = len(query_key)
+        self.last_effective_candidate_count = len(self.candidate_store)
         return indices, weights, context_key, selected_labels
 
     def forward(

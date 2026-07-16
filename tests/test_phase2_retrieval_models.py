@@ -1,5 +1,7 @@
 import logging
+import sys
 import unittest
+from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
@@ -10,6 +12,7 @@ from torch.utils.data import DataLoader
 from src.configs.default_config import DAFConfig
 from src.data.adapters import ModernNCAAdapter, TabRAdapter, get_adapter
 from src.data.phase2_dataset import Phase2TensorDataset
+from src.models.baselines.faiss_search import ExactFaissL2Search, require_faiss
 from src.models.baselines.modernnca import ModernNCAWrapper
 from src.models.baselines.retrieval import (
     CandidateStore,
@@ -132,6 +135,46 @@ class CandidateStoreTests(unittest.TestCase):
         self.assertEqual(store.row_ids.device.type, "cpu")
         self.assertEqual(store.provenance["candidate_count"], size)
 
+    def test_production_faiss_matches_bruteforce_and_has_no_fallback(self):
+        query = torch.tensor([[0.0], [2.0]])
+        candidates = torch.tensor([[0.0], [1.0], [2.0], [3.0]])
+        query_ids = torch.tensor([10, 12])
+        candidate_ids = torch.tensor([10, 11, 12, 13])
+        search = ExactFaissL2Search()
+        distances, indices = search.search(
+            query, candidates, 2, query_ids, candidate_ids
+        )
+        brute = torch.cdist(query, candidates).square()
+        brute[query_ids[:, None] == candidate_ids[None, :]] = torch.inf
+        expected_distances, expected_indices = brute.topk(2, largest=False)
+        torch.testing.assert_close(distances, expected_distances)
+        torch.testing.assert_close(indices, expected_indices)
+        self.assertEqual(search.index_type, "IndexFlatL2")
+        self.assertEqual(search.total_index_refresh_seconds, 0.0)
+        self.assertEqual(search.total_search_seconds, 0.0)
+        self.assertIsNone(search.queries_per_second)
+
+        measured = ExactFaissL2Search(measure_performance=True)
+        measured.search(query, candidates, 2, query_ids, candidate_ids)
+        self.assertGreater(measured.total_index_refresh_seconds, 0.0)
+        self.assertGreater(measured.total_search_seconds, 0.0)
+        self.assertGreater(measured.queries_per_second, 0.0)
+
+        with patch.dict(sys.modules, {"faiss": None}):
+            with self.assertRaisesRegex(RuntimeError, "requires FAISS"):
+                require_faiss()
+
+
+    @unittest.skipUnless(torch.cuda.is_available(), "CUDA is required")
+    def test_cuda_production_uses_gpu_flat_index(self):
+        search = ExactFaissL2Search()
+        query = torch.randn(3, 8, device="cuda")
+        candidates = torch.randn(20, 8, device="cuda")
+        distances, indices = search.search(query, candidates, 4)
+        self.assertEqual(search.index_type, "GpuIndexFlatL2")
+        self.assertEqual(distances.device.type, "cuda")
+        self.assertEqual(indices.shape, (3, 4))
+
 
 class TabRBehaviorTests(unittest.TestCase):
     def test_indices_weights_self_exclusion_and_duplicate_preservation(self):
@@ -171,22 +214,30 @@ class TabRBehaviorTests(unittest.TestCase):
 
 
 class ModernNCABehaviorTests(unittest.TestCase):
-    def test_topk_self_exclusion_and_class_probabilities(self):
+    def test_full_classification_matches_reference_and_excludes_self(self):
         torch.manual_seed(11)
         config = retrieval_config("modernnca", "classification")
-        config.nca_n_neighbors = 3
+        config.nca_n_neighbors = -1
         model = ModernNCAWrapper(config).eval()
         candidates = model_inputs([0.0, 0.0, 1.0, 2.0], [10, 11, 12, 13])
-        model.set_train_context(candidates, torch.tensor([0, 1, 0, 1]))
+        labels = torch.tensor([0, 1, 0, 1])
+        model.set_train_context(candidates, labels)
+        query_inputs = model_inputs([0.0], [10])
         with torch.no_grad():
-            output = model(**model_inputs([0.0], [10]))
-        indices = output["history"]["retrieval_indices"][0].tolist()
-        self.assertNotIn(0, indices)
-        self.assertIn(1, indices)
-        probabilities = output["logits"].exp()
-        torch.testing.assert_close(probabilities.sum(dim=1), torch.ones(1))
+            query = model._embed(query_inputs)
+            candidate_keys = model._embed(
+                {key: value for key, value in candidates.items() if key != "row_ids"}
+            )
+            distances = torch.cdist(query, candidate_keys)
+            distances[0, 0] = torch.inf
+            weights = torch.softmax(-distances, dim=1)
+            expected = weights @ torch.nn.functional.one_hot(labels, 2).float()
+            output = model(**query_inputs)
+        torch.testing.assert_close(output["logits"].exp(), expected)
+        torch.testing.assert_close(output["logits"].exp().sum(dim=1), torch.ones(1))
+        self.assertEqual(output["history"]["effective_candidate_count"], 4)
 
-    def test_uniform_sns_changes_actual_candidate_count(self):
+    def test_uniform_sns_removes_and_readds_query_batch(self):
         torch.manual_seed(13)
         config = retrieval_config("modernnca", "regression")
         config.nca_n_neighbors = -1
@@ -194,10 +245,27 @@ class ModernNCABehaviorTests(unittest.TestCase):
         model = ModernNCAWrapper(config).train()
         candidates = model_inputs(torch.arange(10.0), torch.arange(10))
         model.set_train_context(candidates, torch.arange(10.0))
-        output = model(**model_inputs([0.5], [999]))
-        self.assertEqual(model.last_sampled_candidate_count, 5)
-        self.assertEqual(output["history"]["sampled_candidate_count"], 5)
-        self.assertEqual(output["logits"].shape, (1, 1))
+        output = model(**model_inputs([0.0, 1.0], [0, 1]))
+        self.assertEqual(model.last_sampled_candidate_count, 4)
+        self.assertEqual(model.last_effective_candidate_count, 6)
+        self.assertEqual(output["history"]["sampled_candidate_count"], 4)
+        self.assertEqual(output["logits"].shape, (2, 1))
+
+    def test_full_evaluation_is_candidate_chunk_invariant_at_4096_plus_one(self):
+        torch.manual_seed(17)
+        config = retrieval_config("modernnca", "regression")
+        config.nca_n_blocks = 1
+        config.retrieval_candidate_chunk_size = 4096
+        model = ModernNCAWrapper(config).eval()
+        values = torch.linspace(-2.0, 2.0, 4097)
+        candidates = model_inputs(values, torch.arange(4097))
+        model.set_train_context(candidates, values)
+        query = model_inputs([-0.4, 0.8], [9000, 9001])
+        with torch.no_grad():
+            first = model(**query)["logits"]
+            model.candidate_chunk_size = 997
+            second = model(**query)["logits"]
+        torch.testing.assert_close(first, second, rtol=1e-5, atol=1e-6)
 
     def test_tabr_and_modernnca_backward_paths(self):
         candidates = model_inputs([0.0, 0.0, 1.0, 2.0], [10, 11, 12, 13])

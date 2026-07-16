@@ -192,6 +192,8 @@ class LeakageAndManifestTests(unittest.TestCase):
             schema_hash=raw.schema_hash,
             split_hash=prepared.manifest["split_index_hash"],
             adapter=prepared.adapter,
+            target_encoder=prepared.target_encoder,
+            target_policy=config.effective_target_policy,
             seed=42,
             git_sha="abc123",
         )

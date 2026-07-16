@@ -19,8 +19,9 @@ class Evaluator:
     Args:
         task_type (str): 'classification' or 'regression'.
     """
-    def __init__(self, task_type):
+    def __init__(self, task_type, target_transform=None):
         self.task_type = task_type
+        self.target_transform = target_transform
 
     def __call__(self, targets, preds):
         """
@@ -98,6 +99,9 @@ class Evaluator:
         # Regression
         else:
             y_true_flat, y_pred_flat = y_true.flatten(), y_pred.flatten()
+            if self.target_transform is not None:
+                y_true_flat = self.target_transform.inverse_transform(y_true_flat)
+                y_pred_flat = self.target_transform.inverse_transform(y_pred_flat)
             results['mse'] = mean_squared_error(y_true_flat, y_pred_flat)
             results['rmse'] = np.sqrt(results['mse'])
             results['mae'] = mean_absolute_error(y_true_flat, y_pred_flat)

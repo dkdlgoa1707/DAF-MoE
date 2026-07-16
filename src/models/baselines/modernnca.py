@@ -1,19 +1,16 @@
-"""Canonical ModernNCA with CPU-backed stochastic neighbor sampling.
+"""ModernNCA with official uniform SNS and full evaluation semantics.
 
-Architecture reference: TALENT commit
-08301d670a7c854bcf3a73298763484ba58eecdb.
+Reference: LAMDA-Tabular/TALENT commit
+08301d670a7c854bcf3a73298763484ba58eecdb (MIT license).
 """
+
+import time
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from .retrieval import (
-    CandidateStore,
-    OneHotWithUnknownIgnored,
-    PLREmbeddingsLite,
-    streaming_topk,
-)
+from .retrieval import CandidateStore, OneHotWithUnknownIgnored, PLREmbeddingsLite
 
 
 class _NCABlock(nn.Module):
@@ -48,7 +45,11 @@ class ModernNCAWrapper(nn.Module):
         if not 0.0 < self.sample_rate <= 1.0:
             raise ValueError("ModernNCA sample_rate must be in (0, 1].")
         self.n_neighbors = int(config.nca_n_neighbors)
+        if self.n_neighbors > 0:
+            raise ValueError("Official ModernNCA uses all sampled candidates, not top-k.")
         self.candidate_chunk_size = int(config.retrieval_candidate_chunk_size)
+        if self.candidate_chunk_size <= 0:
+            raise ValueError("retrieval_candidate_chunk_size must be positive.")
 
         self.num_embeddings = (
             PLREmbeddingsLite(
@@ -88,15 +89,52 @@ class ModernNCAWrapper(nn.Module):
         self.final_normalization = nn.BatchNorm1d(dim) if n_blocks else None
         self.candidate_store = None
         self.last_sampled_candidate_count = 0
+        self.last_effective_candidate_count = 0
+        self.last_query_count = 0
+        self.total_query_count = 0
+        self.total_candidate_comparisons = 0
+        self.total_prediction_seconds = 0.0
+        self.measure_retrieval_performance = bool(
+            getattr(config, "retrieval_measure_performance", False)
+        )
 
     def set_train_context(self, inputs, targets):
-        self.candidate_store = CandidateStore(inputs, targets)
+        self.candidate_store = CandidateStore(
+            inputs, targets, device=next(self.parameters()).device
+        )
 
     def clear_train_context(self):
         self.candidate_store = None
 
     def candidate_provenance(self):
-        return None if self.candidate_store is None else self.candidate_store.provenance
+        if self.candidate_store is None:
+            return None
+        return {
+            **self.candidate_store.provenance,
+            "upstream_reference": self.upstream_reference,
+            "sns_policy": "uniform_without_query_batch",
+            "sample_rate": self.sample_rate,
+            "training_candidate_policy": "sample_train_then_readd_query_batch",
+            "evaluation_candidate_policy": "all_train_candidates",
+            "evaluation_mode": "exact_streaming_softmax",
+            "normalization_policy": "single_logical_candidate_batch",
+            "last_sampled_candidate_count": self.last_sampled_candidate_count,
+            "last_effective_candidate_count": self.last_effective_candidate_count,
+            "last_query_count": self.last_query_count,
+            "total_query_count": self.total_query_count,
+            "total_candidate_comparisons": self.total_candidate_comparisons,
+            "prediction_seconds": self.total_prediction_seconds,
+            "queries_per_second": (
+                self.total_query_count / self.total_prediction_seconds
+                if self.total_prediction_seconds > 0
+                else None
+            ),
+            "candidate_comparisons_per_second": (
+                self.total_candidate_comparisons / self.total_prediction_seconds
+                if self.total_prediction_seconds > 0
+                else None
+            ),
+        }
 
     def _feature_vector(self, inputs):
         values = inputs["x_numerical_values"]
@@ -116,64 +154,69 @@ class ModernNCAWrapper(nn.Module):
             x = self.final_normalization(x)
         return x
 
-    def _sample_candidate_indices(self):
-        if self.candidate_store is None:
-            raise RuntimeError("ModernNCA training context has not been set.")
-        n_candidates = len(self.candidate_store)
-        if not self.training:
-            indices = torch.arange(n_candidates)
-        else:
-            sample_size = max(1, int(n_candidates * self.sample_rate))
-            indices = torch.randperm(n_candidates)[:sample_size]
-        self.last_sampled_candidate_count = len(indices)
-        return indices
-
     def _target_values(self, labels, dtype):
         if self.is_regression:
             return labels.float().unsqueeze(-1)
         return F.one_hot(labels.long(), self.out_dim).to(dtype)
 
-    def _topk_prediction(self, query, query_row_ids, candidate_indices):
-        distances, indices = streaming_topk(
-            query,
-            query_row_ids,
-            self.candidate_store,
-            self._embed,
-            min(self.n_neighbors, len(candidate_indices)),
-            self.candidate_chunk_size,
-            candidate_indices=candidate_indices,
-            squared=False,
-        )
-        selected_inputs, labels, _ = self.candidate_store.gather(indices, query.device)
-        flat_inputs = {
-            name: value.flatten(0, 1) for name, value in selected_inputs.items()
-        }
-        keys = self._embed(flat_inputs).reshape(query.shape[0], indices.shape[1], -1)
-        distances = torch.linalg.vector_norm(query[:, None, :] - keys, dim=-1)
-        weights = F.softmax(-distances / self.temperature, dim=-1)
-        values = self._target_values(labels, query.dtype)
-        prediction = torch.sum(weights.unsqueeze(-1) * values, dim=1)
-        return prediction, {
-            "retrieval_indices": indices.detach(),
-            "retrieval_weights": weights.detach(),
-        }
+    def _logical_candidates(self, query, query_row_ids):
+        device = query.device
+        if self.training:
+            if query_row_ids is None:
+                raise ValueError("ModernNCA training requires query row IDs.")
+            query_positions = self.candidate_store.positions_for_row_ids(query_row_ids)
+            keep = torch.ones(len(self.candidate_store), dtype=torch.bool)
+            keep[query_positions] = False
+            available = torch.arange(len(self.candidate_store))[keep]
+            sample_size = int(len(available) * self.sample_rate)
+            if len(available) and sample_size == 0:
+                sample_size = 1
+            sampled = available[torch.randperm(len(available))[:sample_size]]
+            sampled_inputs, sampled_labels, sampled_row_ids = self.candidate_store.gather(
+                sampled, device
+            )
+            sampled_keys = (
+                self._embed(sampled_inputs)
+                if len(sampled)
+                else query.new_empty((0, query.shape[1]))
+            )
+            query_labels = self.candidate_store.targets[query_positions].to(device)
+            candidate_keys = torch.cat([query, sampled_keys], dim=0)
+            candidate_labels = torch.cat([query_labels, sampled_labels], dim=0)
+            candidate_row_ids = torch.cat(
+                [query_row_ids.to(device).long(), sampled_row_ids], dim=0
+            )
+            self.last_sampled_candidate_count = len(sampled)
+        else:
+            indices = torch.arange(len(self.candidate_store))
+            candidate_inputs, candidate_labels, candidate_row_ids = (
+                self.candidate_store.gather(indices, device)
+            )
+            candidate_keys = self._embed(candidate_inputs)
+            self.last_sampled_candidate_count = len(indices)
+        self.last_effective_candidate_count = len(candidate_keys)
+        return candidate_keys, candidate_labels, candidate_row_ids
 
-    def _full_prediction(self, query, query_row_ids, candidate_indices):
+    def _full_prediction(
+        self, query, query_row_ids, candidate_keys, candidate_labels, candidate_row_ids
+    ):
+        prediction_started = (
+            time.perf_counter() if self.measure_retrieval_performance else None
+        )
         device = query.device
         query_ids = None if query_row_ids is None else query_row_ids.to(device).long()
         running_max = torch.full((len(query),), -torch.inf, device=device)
         denominator = torch.zeros(len(query), device=device)
         numerator = torch.zeros(len(query), self.out_dim, device=device)
+        target_values = self._target_values(candidate_labels, query.dtype)
 
-        for _, cpu_inputs, cpu_labels, cpu_row_ids in self.candidate_store.iter_chunks(
-            self.candidate_chunk_size, candidate_indices
-        ):
-            inputs = {name: value.to(device) for name, value in cpu_inputs.items()}
-            keys = self._embed(inputs)
+        for start in range(0, len(candidate_keys), self.candidate_chunk_size):
+            stop = min(start + self.candidate_chunk_size, len(candidate_keys))
+            keys = candidate_keys[start:stop]
             scores = -torch.cdist(query, keys, p=2) / self.temperature
             if query_ids is not None:
                 scores = scores.masked_fill(
-                    query_ids[:, None] == cpu_row_ids.to(device)[None, :],
+                    query_ids[:, None] == candidate_row_ids[start:stop][None, :],
                     -torch.inf,
                 )
             chunk_max = scores.max(dim=1).values
@@ -188,15 +231,27 @@ class ModernNCAWrapper(nn.Module):
                 torch.exp(scores - new_max[:, None]),
                 torch.zeros_like(scores),
             )
-            values = self._target_values(cpu_labels.to(device), query.dtype)
             denominator = denominator * old_scale + weights.sum(dim=1)
-            numerator = numerator * old_scale.unsqueeze(-1) + weights @ values
+            numerator = (
+                numerator * old_scale.unsqueeze(-1)
+                + weights @ target_values[start:stop]
+            )
             running_max = new_max
 
         if (denominator <= 0).any():
-            raise ValueError("No valid ModernNCA candidate remains after row-ID exclusion.")
+            raise ValueError("No valid ModernNCA candidate remains after self-exclusion.")
+        self.last_query_count = len(query)
+        if self.measure_retrieval_performance:
+            if query.device.type == "cuda":
+                torch.cuda.synchronize(query.device)
+            self.total_prediction_seconds += (
+                time.perf_counter() - prediction_started
+            )
+        self.total_query_count += len(query)
+        self.total_candidate_comparisons += len(query) * len(candidate_keys)
         return numerator / denominator.unsqueeze(-1), {
             "sampled_candidate_count": self.last_sampled_candidate_count,
+            "effective_candidate_count": self.last_effective_candidate_count,
         }
 
     def forward(
@@ -215,15 +270,16 @@ class ModernNCAWrapper(nn.Module):
             "x_categorical_idx": x_categorical_idx,
         }
         query = self._embed(inputs)
-        candidate_indices = self._sample_candidate_indices()
-        if self.n_neighbors > 0:
-            prediction, history = self._topk_prediction(
-                query, row_ids, candidate_indices
-            )
-        else:
-            prediction, history = self._full_prediction(
-                query, row_ids, candidate_indices
-            )
+        candidate_keys, candidate_labels, candidate_row_ids = (
+            self._logical_candidates(query, row_ids)
+        )
+        prediction, history = self._full_prediction(
+            query,
+            row_ids,
+            candidate_keys,
+            candidate_labels,
+            candidate_row_ids,
+        )
 
         logits = (
             prediction

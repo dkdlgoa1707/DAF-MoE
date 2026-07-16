@@ -8,9 +8,6 @@ import subprocess
 import numpy as np
 
 
-PROTOCOL_VERSION = "phase2-v1"
-
-
 def canonicalize(value):
     if isinstance(value, np.ndarray):
         return value.tolist()
@@ -54,12 +51,19 @@ def build_run_manifest(
     schema_hash,
     split_hash,
     adapter,
+    target_encoder,
+    target_policy,
     seed,
     subsample_size=None,
     missing_counts=None,
     unseen_category_counts=None,
     git_sha=None,
 ):
+    from src.phase2_protocol import PROTOCOL_VERSION
+
+    target_state = target_encoder.state_dict()
+    feature_state_hash = adapter.state_hash
+    target_state_hash = target_encoder.state_hash
     manifest = {
         "protocol_version": PROTOCOL_VERSION,
         "git_sha": git_sha or current_git_sha(),
@@ -69,7 +73,18 @@ def build_run_manifest(
         "split_index_hash": split_hash,
         "preprocessing_class": adapter.__class__.__name__,
         "preprocessing_version": adapter.version,
-        "fitted_state_hash": adapter.state_hash,
+        "feature_fitted_state_hash": feature_state_hash,
+        "target_policy": target_policy,
+        "target_transform_class": target_encoder.__class__.__name__,
+        "target_transform_version": target_encoder.version,
+        "train_target_mean": target_state.get("mean"),
+        "train_target_std": target_state.get("std"),
+        "target_std_fallback": target_state.get("std_fallback", False),
+        "target_fitted_state_hash": target_state_hash,
+        "fitted_state_hash": stable_hash(
+            {"feature": feature_state_hash, "target": target_state_hash}
+        ),
+        "metric_scale": "original_target_unit",
         "missing_counts": missing_counts or {},
         "unseen_category_counts": unseen_category_counts or {},
         "random_seed": int(seed),

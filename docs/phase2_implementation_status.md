@@ -1,6 +1,6 @@
 # Phase 2 Implementation Status
 
-This document maps the fixed `phase2-v1` protocol to the implementation that
+This document maps the fixed `phase2-v2` protocol to the implementation that
 was behavior-tested. It does not claim bitwise identity with every upstream
 repository. Full readiness is decided only by `scripts/phase2_preflight.sh`.
 

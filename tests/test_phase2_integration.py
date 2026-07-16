@@ -11,6 +11,7 @@ from src.data.adapters import ADAPTER_REGISTRY, DAFV2Adapter, NativeRawAdapter
 from src.data.provenance import stable_hash
 from src.data.splits import RawDataset, RawSplitRegistry
 from src.hpo.engine import TrialArtifactWriter, make_guarded_objective
+from src.hpo.identity import build_study_identity
 from src.hpo.schema import load_search_space
 from src.phase2_protocol import DATASETS, MAIN_RANK_INCLUDED, PROTOCOL_VERSION
 from src.phase2_results import build_execution_manifest, reusable_result, write_result
@@ -82,6 +83,12 @@ class ProtocolIntegrationMatrixTests(unittest.TestCase):
                 with self.subTest(task=task_kind, model=model):
                     space = load_search_space(SPACE_ROOT / f"{model}.yaml")
                     trial = DeterministicTrial()
+                    base = {
+                        "model_name": model,
+                        "task_type": task_type,
+                        "optimize_metric": "rmse" if task_type == "regression" else "acc",
+                    }
+                    identity = build_study_identity(raw, base, space)
                     with tempfile.TemporaryDirectory() as directory:
                         writer = TrialArtifactWriter(directory)
 
@@ -104,7 +111,7 @@ class ProtocolIntegrationMatrixTests(unittest.TestCase):
                             evaluator,
                             n_rows=len(raw.features),
                             artifact_writer=writer,
-                            study_name=f"{raw.dataset_name}__{model}__{PROTOCOL_VERSION}",
+                            study_identity=identity,
                             task_type=task_type,
                         )
                         self.assertEqual(objective(trial), 0.5)
@@ -133,6 +140,7 @@ class ProtocolIntegrationMatrixTests(unittest.TestCase):
                                     resolved,
                                     space.schema_hash,
                                     seed,
+                                    study_identity=identity,
                                 )
                             )
                         self.assertNotEqual(

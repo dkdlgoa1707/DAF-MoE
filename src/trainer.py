@@ -56,7 +56,10 @@ class Trainer:
         self.device = device
         self.logger = logger
         self.verbose = verbose
-        self.evaluator = Evaluator(task_type=config.task_type)
+        self.evaluator = Evaluator(
+            task_type=config.task_type,
+            target_transform=getattr(config, 'target_encoder', None),
+        )
         
         self.lr = float(config.learning_rate)
         

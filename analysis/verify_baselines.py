@@ -197,7 +197,7 @@ def verify_retrieval_behavior():
             tabr_d_main=8,
             tabr_predictor_n_blocks=1,
             nca_dim=8,
-            nca_n_neighbors=3,
+            nca_n_neighbors=-1,
             plr_n_frequencies=3,
             plr_embedding_dim=4,
             retrieval_candidate_chunk_size=2,
@@ -208,17 +208,27 @@ def verify_retrieval_behavior():
         else:
             model.set_train_context(candidates, labels)
         with torch.no_grad():
-            history = model(**query)["history"]
-        indices = history["retrieval_indices"][0].tolist()
-        assert 0 not in indices, f"{model_name} did not exclude its stable row ID"
-        assert 1 in indices, f"{model_name} incorrectly removed a duplicate feature row"
+            output = model(**query)
+        history = output["history"]
+        if model_name == "tabr":
+            indices = history["retrieval_indices"][0].tolist()
+            assert 0 not in indices, "TabR did not exclude its stable row ID"
+            assert 1 in indices, "TabR incorrectly removed a duplicate feature row"
+            assert model.candidate_provenance()["retrieval_backend"] == "faiss"
+        else:
+            probabilities = output["logits"].exp()
+            torch.testing.assert_close(probabilities.sum(1), torch.ones(1))
+            assert history["effective_candidate_count"] == len(labels)
         store = model.candidate_store
-        assert store.targets.device.type == "cpu"
-        assert all(value.device.type == "cpu" for value in store.inputs.values())
+        expected_device = next(model.parameters()).device.type
+        assert store.targets.device.type == expected_device
+        assert all(
+            value.device.type == expected_device for value in store.inputs.values()
+        )
 
     print(
         "\n[retrieval behavior]\n"
-        "  exact row-ID self-exclusion + duplicate preservation + CPU store PASS"
+        "  TabR exact FAISS self-exclusion + ModernNCA full soft-neighbor PASS"
     )
 
 

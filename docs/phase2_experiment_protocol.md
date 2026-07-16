@@ -1,6 +1,6 @@
 # DAF-MoE Phase 2 Experiment Protocol
 
-Protocol version: `phase2-v1`
+Protocol version: `phase2-v2`
 
 This document is the source of truth for Phase 2 data preparation, model
 selection, HPO, and final evaluation. Results without a matching protocol and
@@ -97,9 +97,12 @@ by the encoder denominator clamp. Constant and all-missing features use scale
 
 ### Regression targets
 
-Target transformations are declared before evaluation. They fit on train only,
-and metrics are computed after inverse transformation in the original target
-unit. The default policy is identity.
+Target transformations are declared before evaluation. Custom neural methods
+standardize regression targets with train-only mean and population standard
+deviation. Validation, HPO objective, and final metrics inverse-transform both
+targets and predictions before scoring in the original target unit. Native
+estimators retain their official native target scale. Constant train targets
+use a deterministic unit-scale fallback recorded in the manifest.
 
 ## Provenance
 
@@ -108,9 +111,13 @@ Every run manifest records:
 - git SHA and protocol version
 - dataset/schema version and schema hash
 - split-index hash
-- preprocessing class/version and fitted-state hash
+- feature and target preprocessing classes/versions and fitted-state hashes
+- effective target policy, train target mean/std, fallback flag, and metric scale
+- model implementation version and canonical study signature/components
 - missing and unseen-category counts by partition
 - random seed and deterministic subsample size
 
-Resume is valid only when protocol, config, split, preprocessing, and manifest
-hashes match exactly.
+Resume is valid only when protocol, dataset/schema, model implementation,
+task/metric, search-space, base-config, target-policy, split, preprocessing, and
+manifest hashes match exactly. Only finite `COMPLETE` trials carrying matching
+study and search-space attributes contribute to the HPO completion count.

@@ -154,6 +154,28 @@ class CanonicalModelBehaviorTests(unittest.TestCase):
         self.assertEqual(plain.affine.weight.shape[0], 32)
         self.assertNotEqual(set(plain.state_dict()), set(ple.state_dict()))
 
+    def test_tabm_feature_chunk_initialization(self):
+        _, plain_config, _ = make_prepared("tabm")
+        _, ple_config, _ = make_prepared("tabm_ple")
+        plain = create_model(plain_config)
+        ple = create_model(ple_config)
+        self.assertEqual(plain.affine.feature_chunks, (2, 2, 3, 5))
+        self.assertEqual(ple.affine.feature_chunks, (17, 17, 3, 5))
+        for model in (plain, ple):
+            start = 0
+            chunk_scalars = []
+            for width in model.affine.feature_chunks:
+                chunk = model.affine.weight[:, start : start + width]
+                torch.testing.assert_close(chunk, chunk[:, :1].expand_as(chunk))
+                chunk_scalars.append(chunk[:, 0])
+                start += width
+            self.assertTrue(
+                any(
+                    not torch.equal(chunk_scalars[0], other)
+                    for other in chunk_scalars[1:]
+                )
+            )
+
     def test_tabm_binary_scalar_and_reserved_states(self):
         encoder = TabMOneHotEncoding([4], [2])
         values = torch.tensor([[1], [2], [0], [3]])

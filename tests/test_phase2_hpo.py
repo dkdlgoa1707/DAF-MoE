@@ -15,7 +15,9 @@ from src.hpo.engine import (
     run_until_valid_complete,
     valid_complete_count,
 )
+from src.hpo.identity import StudyIdentity
 from src.hpo.schema import load_search_space, parse_search_space
+from src.phase2_protocol import PROTOCOL_VERSION, model_implementation_version
 from src.phase2_execution import execute_final_seed, execute_hpo_trial
 from src.phase2_results import reusable_result, write_result
 
@@ -67,31 +69,59 @@ class _State:
 
 
 class _FrozenTrial:
-    def __init__(self, number, state, value):
+    def __init__(self, number, state, value, user_attrs):
         self.number = number
         self.state = _State(state)
         self.value = value
+        self.user_attrs = dict(user_attrs)
 
 
 class FakeStudy:
     def __init__(self):
         self.trials = []
+        self.user_attrs = {
+            "study_signature": "fake-signature",
+            "search_space_hash": "fake-search-space",
+        }
 
     def optimize(self, objective, n_trials, catch):
         self.assert_one(n_trials)
         number = len(self.trials)
         trial = FakeTrial(number=number)
+        trial.user_attrs.update(self.user_attrs)
         try:
             value = objective(trial)
         except catch:
-            self.trials.append(_FrozenTrial(number, "FAIL", None))
+            self.trials.append(
+                _FrozenTrial(number, "FAIL", None, trial.user_attrs)
+            )
         else:
-            self.trials.append(_FrozenTrial(number, "COMPLETE", value))
+            self.trials.append(
+                _FrozenTrial(number, "COMPLETE", value, trial.user_attrs)
+            )
 
     @staticmethod
     def assert_one(n_trials):
         if n_trials != 1:
             raise AssertionError("Engine must advance one trial at a time.")
+
+
+def _identity(space, task_type="classification", metric="acc"):
+    return StudyIdentity.from_components(
+        {
+            "protocol_version": PROTOCOL_VERSION,
+            "dataset_name": "tiny",
+            "dataset_schema_hash": "schema-hash",
+            "dataset_schema_version": "test-v1",
+            "model_name": space.model_name,
+            "model_implementation_version": model_implementation_version(space.model_name),
+            "task_type": task_type,
+            "optimize_metric": metric,
+            "search_space_hash": space.schema_hash,
+            "base_experiment_config_hash": "base-hash",
+            "effective_regression_target_policy": "class_mapping",
+        }
+    )
 
 
 def _tiny_raw(task_type="classification"):
@@ -199,17 +229,18 @@ class EngineSemanticsTests(unittest.TestCase):
         space = load_search_space(SPACE_ROOT / "mlp.yaml")
         with tempfile.TemporaryDirectory() as directory:
             writer = TrialArtifactWriter(directory)
+            identity = _identity(space)
             objective = make_guarded_objective(
                 space,
                 lambda resolved, trial: {"metric_value": float("nan")},
                 n_rows=10,
                 artifact_writer=writer,
-                study_name="tiny__mlp__phase2-v1",
+                study_identity=identity,
                 task_type="classification",
             )
             with self.assertRaises(FloatingPointError):
                 objective(FakeTrial())
-            artifact = Path(directory) / "tiny__mlp__phase2-v1" / "trial_00000.json"
+            artifact = Path(directory) / identity.study_name / "trial_00000.json"
             payload = json.loads(artifact.read_text(encoding="utf-8"))
             self.assertEqual(payload["status"], "FAIL")
             self.assertEqual(payload["failure_type"], "FloatingPointError")

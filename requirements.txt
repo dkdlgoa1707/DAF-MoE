@@ -25,6 +25,7 @@ catboost==1.2.10      # Phase 2 native categorical protocol pin
 lightgbm>=4.0.0       # (Optional) Common baseline model
 pytabkit[models]==1.7.3  # Official RealMLP-HPO pipeline
 tabicl==2.1.1         # TabICLv2 classifier/regressor
+faiss-gpu-cu12==1.14.1.post1  # Official exact CUDA search for full TabR
 
 # ==========================================
 # 🔍 HPO & Experiment Tracking

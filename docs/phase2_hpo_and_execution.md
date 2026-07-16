@@ -7,10 +7,10 @@ in `configs/experiments/phase2/base/`.
 ## Global contract
 
 - Optuna `TPESampler(seed=42)` with `NopPruner` and RDB-backed studies.
-- Study names are `{dataset}__{model}__phase2-v1`.
+- Study names and SQLite files are `{dataset}__{model}__phase2-v2__{signature12}`. The signature covers the protocol, dataset schema, model implementation, task/metric, search space, base config, and effective target policy.
 - HPO constructs train and validation only. Seed 42 cannot enter final results.
 - A study stops after 50 finite `COMPLETE` trials. `FAIL`, OOM, invalid shape,
-  and nonfinite metrics remain failed trials and do not count.
+  nonfinite metrics, `RUNNING` trials, and trials with mismatched signature attributes do not count.
 - `--complete-trials` values other than 50 require explicit `--smoke`.
 - Final evaluation defaults to the common seed registry 43 through 57.
 - Every seed refits its split-specific preprocessing and checks the stored

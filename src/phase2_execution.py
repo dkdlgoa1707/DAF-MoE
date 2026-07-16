@@ -8,6 +8,7 @@ import torch
 import torch.optim as optim
 
 from src.configs.default_config import DAFConfig
+from src.data.provenance import stable_hash
 from src.data.phase2_loader import (
     get_phase2_dataloaders,
     get_phase2_hpo_dataloaders,
@@ -20,6 +21,7 @@ from src.native.runner import (
     fit_hpo_estimator,
     run_native_final,
 )
+from src.hpo.identity import build_study_identity
 from src.phase2_results import build_execution_manifest
 from src.trainer import Trainer
 from src.utils.common import seed_everything
@@ -129,7 +131,10 @@ def _evaluate_torch_model(model, loader, config, device):
             targets.append(batch_targets.detach().cpu())
     if not predictions:
         raise ValueError("Cannot evaluate an empty data loader.")
-    return Evaluator(task_type=config.task_type)(
+    return Evaluator(
+        task_type=config.task_type,
+        target_transform=getattr(config, "target_encoder", None),
+    )(
         torch.cat(targets), torch.cat(predictions)
     )
 
@@ -167,6 +172,19 @@ def _fit_neural(raw_dataset, config, include_test, device):
         metric_value = float(metrics[config.optimize_metric])
     else:
         metrics = {config.optimize_metric: metric_value}
+    retrieval_model = (
+        model.module if isinstance(model, torch.nn.DataParallel) else model
+    )
+    if hasattr(retrieval_model, "candidate_provenance"):
+        provenance = retrieval_model.candidate_provenance()
+        if provenance is not None:
+            config.phase2_manifest["retrieval_candidates"] = provenance
+            payload = {
+                key: value
+                for key, value in config.phase2_manifest.items()
+                if key != "manifest_hash"
+            }
+            config.phase2_manifest["manifest_hash"] = stable_hash(payload)
     return trainer, metrics, metric_value
 
 
@@ -179,8 +197,12 @@ def execute_hpo_trial(
     metric_name,
     checkpoint_path=None,
     device=None,
+    study_identity=None,
 ):
     seed = 42
+    study_identity = study_identity or build_study_identity(
+        raw_dataset, base_config, search_space
+    )
     model_name = search_space.model_name
     if model_name == "tabicl":
         raise ValueError("TabICLv2 has no HPO objective.")
@@ -200,6 +222,7 @@ def execute_hpo_trial(
             resolved_config,
             search_space.schema_hash,
             seed,
+            study_identity=study_identity,
         )
         manifest["dependency"] = dependency
         manifest["estimator_config"] = estimator_config
@@ -231,6 +254,7 @@ def execute_hpo_trial(
         resolved_config,
         search_space.schema_hash,
         seed,
+        study_identity=study_identity,
     )
     return ExecutionOutcome(
         metric_value=value,
@@ -253,7 +277,11 @@ def execute_final_seed(
     seed,
     checkpoint_path=None,
     device=None,
+    study_identity=None,
 ):
+    study_identity = study_identity or build_study_identity(
+        raw_dataset, base_config, search_space
+    )
     if int(seed) == 42:
         raise ValueError("HPO seed 42 cannot be used for final evaluation.")
     model_name = search_space.model_name
@@ -275,6 +303,7 @@ def execute_final_seed(
             resolved_config,
             search_space.schema_hash,
             seed,
+            study_identity=study_identity,
         )
         return ExecutionOutcome(
             metric_value=float(result.metric_value),
@@ -302,6 +331,7 @@ def execute_final_seed(
         resolved_config,
         search_space.schema_hash,
         seed,
+        study_identity=study_identity,
     )
     return ExecutionOutcome(
         metric_value=value,

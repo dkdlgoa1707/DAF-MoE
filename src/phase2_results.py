@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from src.data.provenance import stable_hash
-from src.phase2_protocol import PROTOCOL_VERSION
+from src.phase2_protocol import PROTOCOL_VERSION, model_implementation_version
 
 
 def build_execution_manifest(
@@ -13,12 +13,19 @@ def build_execution_manifest(
     resolved_config,
     search_space_hash,
     seed,
+    study_identity,
 ):
     manifest = dict(data_manifest)
     manifest.update(
         {
             "protocol_version": PROTOCOL_VERSION,
             "model_name": model_name,
+            "model_implementation_version": model_implementation_version(model_name),
+            "study_signature": study_identity.signature,
+            "study_signature_components": dict(study_identity.components),
+            "effective_regression_target_policy": study_identity.components[
+                "effective_regression_target_policy"
+            ],
             "resolved_config": resolved_config,
             "resolved_config_hash": stable_hash(resolved_config),
             "search_space_hash": search_space_hash,
@@ -42,6 +49,8 @@ def reusable_result(path, expected_manifest):
     return (
         manifest.get("protocol_version") == PROTOCOL_VERSION
         and manifest.get("manifest_hash") == expected_manifest.get("manifest_hash")
+        and manifest.get("study_signature")
+        == expected_manifest.get("study_signature")
         and manifest.get("resolved_config_hash")
         == expected_manifest.get("resolved_config_hash")
     )

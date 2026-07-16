@@ -1,0 +1,758 @@
+{
+  "blockers": [
+    "covertype/tabr stage2 TIMEOUT: Exceeded 900 seconds",
+    "covertype/modernnca stage2 TIMEOUT: Exceeded 900 seconds"
+  ],
+  "combinations": [
+    {
+      "dataset": "adult",
+      "model": "tabr",
+      "stage1": {
+        "checkpoint": {
+          "bytes": 2535233,
+          "path": "results/phase2/scale_smoke/artifacts/scale_smoke_adult_census_income__tabr__phase2-v2__78583bae0213/stage1_best.pth"
+        },
+        "data": {
+          "batch_size": 256,
+          "candidate_count": 39073,
+          "candidate_row_id_hash": "3160e0d2295500a741d00d827dfc31119103f57ee6829622c690ba40722c6958",
+          "context_size": 96,
+          "index_type": "GpuIndexFlatL2",
+          "retrieval_backend": "faiss",
+          "sample_rate": null,
+          "subsample": null,
+          "test_partition_accessed": false,
+          "total_rows": 48842,
+          "train_rows": 39073,
+          "validation_rows": 4884
+        },
+        "dataset": "adult",
+        "dataset_name": "Adult Census Income",
+        "environment": {
+          "cpu_count": 32,
+          "faiss_version": "1.14.1",
+          "git_sha": "b44c595561a89aa3c6e0c3beeaa1c99254beff78",
+          "gpu_count": 3,
+          "gpu_name": "NVIDIA RTX A6000",
+          "model": "tabr",
+          "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+          "protocol_version": "phase2-v2",
+          "python": "3.10.19",
+          "ram_bytes": 270048301056,
+          "study_name": "scale_smoke_adult_census_income__tabr__phase2-v2__78583bae0213",
+          "study_signature": "78583bae02135a2b7ccd72351649dfebdcf2543c71a014611fd48e547605fd67",
+          "torch_cuda_version": "12.1",
+          "torch_version": "2.5.1+cu121",
+          "upstream_reference": "tabr-official-17baa908-faiss-1.14.1"
+        },
+        "memory": {
+          "max_cuda_memory_allocated": 601054720,
+          "max_cuda_memory_reserved": 887095296,
+          "oom": false,
+          "peak_cpu_rss_kib": 1567240
+        },
+        "model": "tabr",
+        "resolved_config": {
+          "learning_rate": 5.184202941199549e-05,
+          "plr_embedding_dim": 45,
+          "plr_frequency_scale": 6.79657809075816,
+          "plr_lite": true,
+          "plr_n_frequencies": 86,
+          "tabr_context_dropout": 0.5704285838459496,
+          "tabr_d_main": 204,
+          "tabr_dropout0": 0.43919636508684307,
+          "tabr_dropout1": 0.0,
+          "tabr_encoder_n_blocks": 1,
+          "tabr_n_candidates": 96,
+          "tabr_predictor_n_blocks": 1,
+          "weight_decay": 0
+        },
+        "retrieval": {
+          "candidate_count": 39073,
+          "dependency": "faiss-gpu-cu12",
+          "dependency_version": "1.14.1",
+          "index_refresh_count": 173,
+          "index_refresh_seconds": 0.2045103721320629,
+          "index_type": "GpuIndexFlatL2",
+          "last_effective_candidate_count": 39073,
+          "last_query_count": 20,
+          "queries_per_second": 445426.08739246917,
+          "refresh_policy": "candidate_keys_and_index_every_forward",
+          "retrieval_backend": "faiss",
+          "row_id_hash": "3160e0d2295500a741d00d827dfc31119103f57ee6829622c690ba40722c6958",
+          "search_mode": "exact",
+          "search_seconds": 0.09868528414517641,
+          "storage_device": "cuda",
+          "total_query_count": 43957,
+          "upstream_reference": "yandex-research/tabular-dl-tabr@17baa9082506f8e7a0f8d11bb1e08212926a1507"
+        },
+        "retrieval_measurements": {
+          "candidate_comparisons_per_second": null,
+          "effective_candidate_count": 39073,
+          "end_to_end_queries_per_second": 6850.146577530944,
+          "index_refresh_count": 173,
+          "index_refresh_seconds": 0.2045103721320629,
+          "queries_per_second": 445426.08739246917,
+          "query_count": 43957,
+          "search_or_prediction_seconds": 0.09868528414517641
+        },
+        "sampled_params": {
+          "learning_rate": 5.184202941199549e-05,
+          "plr_embedding_dim": 45,
+          "plr_frequency_scale": 6.79657809075816,
+          "plr_n_frequencies": 86,
+          "tabr_context_dropout": 0.5704285838459496,
+          "tabr_d_main": 204,
+          "tabr_dropout0": 0.43919636508684307,
+          "tabr_encoder_n_blocks": 1,
+          "tabr_predictor_n_blocks": 1,
+          "weight_decay__zero_selector": 0.05808361216819946
+        },
+        "stage": 1,
+        "status": "PASS",
+        "timing": {
+          "context_or_index_setup_seconds": 0.6485994197428226,
+          "epoch_training_seconds": 5.849067778326571,
+          "preprocessing_seconds": 0.22527188435196877,
+          "total_seconds": 10.618889894336462,
+          "validation_seconds": 0.5678752027451992
+        },
+        "training": {
+          "epochs_completed": 1,
+          "finite": true,
+          "loss": 0.452732414981119,
+          "validation_metric": 0.8347665847665847,
+          "validation_metric_name": "acc"
+        }
+      },
+      "stage2": {
+        "artifact": {
+          "bytes": 6807,
+          "checkpoint_bytes": 2535419,
+          "path": "results/phase2/scale_smoke/artifacts/scale_smoke_adult_census_income__tabr__phase2-v2__78583bae0213/trial_00000.json"
+        },
+        "best_epoch": 11,
+        "dataset": "adult",
+        "dataset_name": "Adult Census Income",
+        "environment": {
+          "cpu_count": 32,
+          "faiss_version": "1.14.1",
+          "git_sha": "b44c595561a89aa3c6e0c3beeaa1c99254beff78",
+          "gpu_count": 3,
+          "gpu_name": "NVIDIA RTX A6000",
+          "model": "tabr",
+          "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+          "protocol_version": "phase2-v2",
+          "python": "3.10.19",
+          "ram_bytes": 270048301056,
+          "study_name": "scale_smoke_adult_census_income__tabr__phase2-v2__78583bae0213",
+          "study_signature": "78583bae02135a2b7ccd72351649dfebdcf2543c71a014611fd48e547605fd67",
+          "torch_cuda_version": "12.1",
+          "torch_version": "2.5.1+cu121",
+          "upstream_reference": "tabr-official-17baa908-faiss-1.14.1"
+        },
+        "epochs_completed": 28,
+        "memory": {
+          "max_cuda_memory_allocated": 0,
+          "max_cuda_memory_reserved": 0,
+          "oom": false,
+          "peak_cpu_rss_kib": 667872
+        },
+        "model": "tabr",
+        "resolved_config": {
+          "learning_rate": 5.184202941199549e-05,
+          "plr_embedding_dim": 45,
+          "plr_frequency_scale": 6.79657809075816,
+          "plr_lite": true,
+          "plr_n_frequencies": 86,
+          "tabr_context_dropout": 0.5704285838459496,
+          "tabr_d_main": 204,
+          "tabr_dropout0": 0.43919636508684307,
+          "tabr_dropout1": 0.0,
+          "tabr_encoder_n_blocks": 1,
+          "tabr_n_candidates": 96,
+          "tabr_predictor_n_blocks": 1,
+          "weight_decay": 0
+        },
+        "retrieval": {
+          "candidate_count": 39073,
+          "dependency": "faiss-gpu-cu12",
+          "dependency_version": "1.14.1",
+          "index_refresh_count": 4844,
+          "index_type": "GpuIndexFlatL2",
+          "last_effective_candidate_count": 39073,
+          "last_query_count": 20,
+          "refresh_policy": "candidate_keys_and_index_every_forward",
+          "retrieval_backend": "faiss",
+          "row_id_hash": "3160e0d2295500a741d00d827dfc31119103f57ee6829622c690ba40722c6958",
+          "search_mode": "exact",
+          "storage_device": "cuda",
+          "upstream_reference": "yandex-research/tabular-dl-tabr@17baa9082506f8e7a0f8d11bb1e08212926a1507"
+        },
+        "sampled_params": {
+          "learning_rate": 5.184202941199549e-05,
+          "plr_embedding_dim": 45,
+          "plr_frequency_scale": 6.79657809075816,
+          "plr_n_frequencies": 86,
+          "tabr_context_dropout": 0.5704285838459496,
+          "tabr_d_main": 204,
+          "tabr_dropout0": 0.43919636508684307,
+          "tabr_encoder_n_blocks": 1,
+          "tabr_predictor_n_blocks": 1,
+          "weight_decay__zero_selector": 0.05808361216819946
+        },
+        "stage": 2,
+        "status": "PASS",
+        "storage": "sqlite:////hdd2/KJS_workspace/DAF_MoE_Submission/results/phase2/scale_smoke/databases/scale_smoke_adult_census_income__tabr__phase2-v2__78583bae0213.db",
+        "subsample": null,
+        "test_partition_accessed": false,
+        "timing": {
+          "artifact_elapsed_seconds": 163.97654048725963,
+          "total_trial_seconds": 1.491004197858274
+        },
+        "trial_number": 0,
+        "valid_complete_trials": 1,
+        "validation_metric": 0.878992628992629
+      }
+    },
+    {
+      "dataset": "adult",
+      "model": "modernnca",
+      "stage1": {
+        "checkpoint": {
+          "bytes": 6881465,
+          "path": "results/phase2/scale_smoke/artifacts/scale_smoke_adult_census_income__modernnca__phase2-v2__6c1511b7693a/stage1_best.pth"
+        },
+        "data": {
+          "batch_size": 256,
+          "candidate_count": 39073,
+          "candidate_row_id_hash": "3160e0d2295500a741d00d827dfc31119103f57ee6829622c690ba40722c6958",
+          "context_size": null,
+          "index_type": null,
+          "retrieval_backend": null,
+          "sample_rate": 0.1358102522433401,
+          "subsample": null,
+          "test_partition_accessed": false,
+          "total_rows": 48842,
+          "train_rows": 39073,
+          "validation_rows": 4884
+        },
+        "dataset": "adult",
+        "dataset_name": "Adult Census Income",
+        "environment": {
+          "cpu_count": 32,
+          "faiss_version": "1.14.1",
+          "git_sha": "b44c595561a89aa3c6e0c3beeaa1c99254beff78",
+          "gpu_count": 3,
+          "gpu_name": "NVIDIA RTX A6000",
+          "model": "modernnca",
+          "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+          "protocol_version": "phase2-v2",
+          "python": "3.10.19",
+          "ram_bytes": 270048301056,
+          "study_name": "scale_smoke_adult_census_income__modernnca__phase2-v2__6c1511b7693a",
+          "study_signature": "6c1511b7693a085b5a5009282b8ca1f04f9808456b448e106e47fa76375a29ce",
+          "torch_cuda_version": "12.1",
+          "torch_version": "2.5.1+cu121",
+          "upstream_reference": "modernnca-talent-08301d6-v1"
+        },
+        "memory": {
+          "max_cuda_memory_allocated": 459928576,
+          "max_cuda_memory_reserved": 1019215872,
+          "oom": false,
+          "peak_cpu_rss_kib": 1318720
+        },
+        "model": "modernnca",
+        "resolved_config": {
+          "distance": "euclidean",
+          "dropout": 0.2993292420985183,
+          "learning_rate": 4.207053950287933e-05,
+          "nca_d_block": 977,
+          "nca_dim": 767,
+          "nca_n_blocks": 1,
+          "nca_sample_rate": 0.1358102522433401,
+          "nca_temperature": 1.0,
+          "plr_embedding_dim": 26,
+          "plr_frequency_scale": 1.3311216080736887,
+          "plr_n_frequencies": 86,
+          "sampling": "uniform_sns",
+          "weight_decay": 0
+        },
+        "retrieval": {
+          "candidate_comparisons_per_second": 445316222.16647613,
+          "candidate_count": 39073,
+          "evaluation_candidate_policy": "all_train_candidates",
+          "evaluation_mode": "exact_streaming_softmax",
+          "last_effective_candidate_count": 39073,
+          "last_query_count": 20,
+          "last_sampled_candidate_count": 39073,
+          "normalization_policy": "single_logical_candidate_batch",
+          "prediction_seconds": 0.9134538127109408,
+          "queries_per_second": 48121.75436604153,
+          "row_id_hash": "3160e0d2295500a741d00d827dfc31119103f57ee6829622c690ba40722c6958",
+          "sample_rate": 0.1358102522433401,
+          "sns_policy": "uniform_without_query_batch",
+          "storage_device": "cuda",
+          "total_candidate_comparisons": 406775801,
+          "total_query_count": 43957,
+          "training_candidate_policy": "sample_train_then_readd_query_batch",
+          "upstream_reference": "TALENT@08301d670a7c854bcf3a73298763484ba58eecdb"
+        },
+        "retrieval_measurements": {
+          "candidate_comparisons_per_second": 445316222.16647613,
+          "effective_candidate_count": 39073,
+          "end_to_end_queries_per_second": 10937.65952447916,
+          "index_refresh_count": null,
+          "index_refresh_seconds": null,
+          "queries_per_second": 48121.75436604153,
+          "query_count": 43957,
+          "search_or_prediction_seconds": 0.9134538127109408
+        },
+        "sampled_params": {
+          "dropout": 0.2993292420985183,
+          "learning_rate": 4.207053950287933e-05,
+          "nca_d_block": 977,
+          "nca_dim": 767,
+          "nca_n_blocks": 1,
+          "nca_sample_rate": 0.1358102522433401,
+          "plr_embedding_dim": 26,
+          "plr_frequency_scale": 1.3311216080736887,
+          "plr_n_frequencies": 86,
+          "weight_decay__zero_selector": 0.05808361216819946
+        },
+        "stage": 1,
+        "status": "PASS",
+        "timing": {
+          "context_or_index_setup_seconds": 0.5987290274351835,
+          "epoch_training_seconds": 3.0891267908737063,
+          "preprocessing_seconds": 0.13783812709152699,
+          "total_seconds": 8.065750306472182,
+          "validation_seconds": 0.9297403078526258
+        },
+        "training": {
+          "epochs_completed": 1,
+          "finite": true,
+          "loss": 0.3558025453604904,
+          "validation_metric": 0.8439803439803439,
+          "validation_metric_name": "acc"
+        }
+      },
+      "stage2": {
+        "artifact": {
+          "bytes": 6817,
+          "checkpoint_bytes": 6881923,
+          "path": "results/phase2/scale_smoke/artifacts/scale_smoke_adult_census_income__modernnca__phase2-v2__6c1511b7693a/trial_00000.json"
+        },
+        "best_epoch": 23,
+        "dataset": "adult",
+        "dataset_name": "Adult Census Income",
+        "environment": {
+          "cpu_count": 32,
+          "faiss_version": "1.14.1",
+          "git_sha": "b44c595561a89aa3c6e0c3beeaa1c99254beff78",
+          "gpu_count": 3,
+          "gpu_name": "NVIDIA RTX A6000",
+          "model": "modernnca",
+          "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+          "protocol_version": "phase2-v2",
+          "python": "3.10.19",
+          "ram_bytes": 270048301056,
+          "study_name": "scale_smoke_adult_census_income__modernnca__phase2-v2__6c1511b7693a",
+          "study_signature": "6c1511b7693a085b5a5009282b8ca1f04f9808456b448e106e47fa76375a29ce",
+          "torch_cuda_version": "12.1",
+          "torch_version": "2.5.1+cu121",
+          "upstream_reference": "modernnca-talent-08301d6-v1"
+        },
+        "epochs_completed": 40,
+        "memory": {
+          "max_cuda_memory_allocated": 466806272,
+          "max_cuda_memory_reserved": 1019215872,
+          "oom": false,
+          "peak_cpu_rss_kib": 1369876
+        },
+        "model": "modernnca",
+        "resolved_config": {
+          "distance": "euclidean",
+          "dropout": 0.2993292420985183,
+          "learning_rate": 4.207053950287933e-05,
+          "nca_d_block": 977,
+          "nca_dim": 767,
+          "nca_n_blocks": 1,
+          "nca_sample_rate": 0.1358102522433401,
+          "nca_temperature": 1.0,
+          "plr_embedding_dim": 26,
+          "plr_frequency_scale": 1.3311216080736887,
+          "plr_n_frequencies": 86,
+          "sampling": "uniform_sns",
+          "weight_decay": 0
+        },
+        "retrieval": {
+          "candidate_count": 39073,
+          "evaluation_candidate_policy": "all_train_candidates",
+          "evaluation_mode": "exact_streaming_softmax",
+          "last_effective_candidate_count": 39073,
+          "last_query_count": 20,
+          "last_sampled_candidate_count": 39073,
+          "normalization_policy": "single_logical_candidate_batch",
+          "row_id_hash": "3160e0d2295500a741d00d827dfc31119103f57ee6829622c690ba40722c6958",
+          "sample_rate": 0.1358102522433401,
+          "sns_policy": "uniform_without_query_batch",
+          "storage_device": "cuda",
+          "training_candidate_policy": "sample_train_then_readd_query_batch",
+          "upstream_reference": "TALENT@08301d670a7c854bcf3a73298763484ba58eecdb"
+        },
+        "sampled_params": {
+          "dropout": 0.2993292420985183,
+          "learning_rate": 4.207053950287933e-05,
+          "nca_d_block": 977,
+          "nca_dim": 767,
+          "nca_n_blocks": 1,
+          "nca_sample_rate": 0.1358102522433401,
+          "plr_embedding_dim": 26,
+          "plr_frequency_scale": 1.3311216080736887,
+          "plr_n_frequencies": 86,
+          "weight_decay__zero_selector": 0.05808361216819946
+        },
+        "stage": 2,
+        "status": "PASS",
+        "storage": "sqlite:////hdd2/KJS_workspace/DAF_MoE_Submission/results/phase2/scale_smoke/databases/scale_smoke_adult_census_income__modernnca__phase2-v2__6c1511b7693a.db",
+        "subsample": null,
+        "test_partition_accessed": false,
+        "timing": {
+          "artifact_elapsed_seconds": 155.12361677363515,
+          "total_trial_seconds": 157.1625329842791
+        },
+        "trial_number": 0,
+        "valid_complete_trials": 1,
+        "validation_metric": 0.8675266175266175
+      }
+    },
+    {
+      "dataset": "covertype",
+      "model": "tabr",
+      "stage1": {
+        "checkpoint": {
+          "bytes": 2645121,
+          "path": "results/phase2/scale_smoke/artifacts/scale_smoke_covertype__tabr__phase2-v2__5353ae019e4d/stage1_best.pth"
+        },
+        "data": {
+          "batch_size": 256,
+          "candidate_count": 464809,
+          "candidate_row_id_hash": "b268b56257c497f6a38df3c410db8cd0fcfe4056b642fc46034b74b27b3f7520",
+          "context_size": 96,
+          "index_type": "GpuIndexFlatL2",
+          "retrieval_backend": "faiss",
+          "sample_rate": null,
+          "subsample": null,
+          "test_partition_accessed": false,
+          "total_rows": 581012,
+          "train_rows": 464809,
+          "validation_rows": 58101
+        },
+        "dataset": "covertype",
+        "dataset_name": "Covertype",
+        "environment": {
+          "cpu_count": 32,
+          "faiss_version": "1.14.1",
+          "git_sha": "b44c595561a89aa3c6e0c3beeaa1c99254beff78",
+          "gpu_count": 3,
+          "gpu_name": "NVIDIA RTX A6000",
+          "model": "tabr",
+          "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+          "protocol_version": "phase2-v2",
+          "python": "3.10.19",
+          "ram_bytes": 270048301056,
+          "study_name": "scale_smoke_covertype__tabr__phase2-v2__5353ae019e4d",
+          "study_signature": "5353ae019e4d4b22f4a4bec8d876f112a70d25f0b64a626abf7d896053670559",
+          "torch_cuda_version": "12.1",
+          "torch_version": "2.5.1+cu121",
+          "upstream_reference": "tabr-official-17baa908-faiss-1.14.1"
+        },
+        "memory": {
+          "max_cuda_memory_allocated": 1006632448,
+          "max_cuda_memory_reserved": 1436549120,
+          "oom": false,
+          "peak_cpu_rss_kib": 1807528
+        },
+        "model": "tabr",
+        "resolved_config": {
+          "learning_rate": 5.184202941199549e-05,
+          "plr_embedding_dim": 45,
+          "plr_frequency_scale": 6.79657809075816,
+          "plr_lite": true,
+          "plr_n_frequencies": 86,
+          "tabr_context_dropout": 0.5704285838459496,
+          "tabr_d_main": 204,
+          "tabr_dropout0": 0.43919636508684307,
+          "tabr_dropout1": 0.0,
+          "tabr_encoder_n_blocks": 1,
+          "tabr_n_candidates": 96,
+          "tabr_predictor_n_blocks": 1,
+          "weight_decay": 0
+        },
+        "retrieval": {
+          "candidate_count": 464809,
+          "dependency": "faiss-gpu-cu12",
+          "dependency_version": "1.14.1",
+          "index_refresh_count": 2043,
+          "index_refresh_seconds": 100.21985580492765,
+          "index_type": "GpuIndexFlatL2",
+          "last_effective_candidate_count": 464809,
+          "last_query_count": 245,
+          "queries_per_second": 57670.02202837498,
+          "refresh_policy": "candidate_keys_and_index_every_forward",
+          "retrieval_backend": "faiss",
+          "row_id_hash": "b268b56257c497f6a38df3c410db8cd0fcfe4056b642fc46034b74b27b3f7520",
+          "search_mode": "exact",
+          "search_seconds": 9.06727588456124,
+          "storage_device": "cuda",
+          "total_query_count": 522910,
+          "upstream_reference": "yandex-research/tabular-dl-tabr@17baa9082506f8e7a0f8d11bb1e08212926a1507"
+        },
+        "retrieval_measurements": {
+          "candidate_comparisons_per_second": null,
+          "effective_candidate_count": 464809,
+          "end_to_end_queries_per_second": 1254.0658360032846,
+          "index_refresh_count": 2043,
+          "index_refresh_seconds": 100.21985580492765,
+          "queries_per_second": 57670.02202837498,
+          "query_count": 522910,
+          "search_or_prediction_seconds": 9.06727588456124
+        },
+        "sampled_params": {
+          "learning_rate": 5.184202941199549e-05,
+          "plr_embedding_dim": 45,
+          "plr_frequency_scale": 6.79657809075816,
+          "plr_n_frequencies": 86,
+          "tabr_context_dropout": 0.5704285838459496,
+          "tabr_d_main": 204,
+          "tabr_dropout0": 0.43919636508684307,
+          "tabr_encoder_n_blocks": 1,
+          "tabr_predictor_n_blocks": 1,
+          "weight_decay__zero_selector": 0.05808361216819946
+        },
+        "stage": 1,
+        "status": "PASS",
+        "timing": {
+          "context_or_index_setup_seconds": 5.540998526848853,
+          "epoch_training_seconds": 373.46272884495556,
+          "preprocessing_seconds": 2.504756140522659,
+          "total_seconds": 427.9724780190736,
+          "validation_seconds": 43.50900022033602
+        },
+        "training": {
+          "epochs_completed": 1,
+          "finite": true,
+          "loss": 0.5440861650615405,
+          "validation_metric": 0.9566100411352645,
+          "validation_metric_name": "acc"
+        }
+      },
+      "stage2": {
+        "dataset": "covertype",
+        "elapsed_seconds": 900.273988660425,
+        "failure_reason": "Exceeded 900 seconds",
+        "failure_type": "TimeoutExpired",
+        "model": "tabr",
+        "stage": 2,
+        "status": "TIMEOUT",
+        "subsample": null,
+        "test_partition_accessed": false
+      }
+    },
+    {
+      "dataset": "covertype",
+      "model": "modernnca",
+      "stage1": {
+        "checkpoint": {
+          "bytes": 7027001,
+          "path": "results/phase2/scale_smoke/artifacts/scale_smoke_covertype__modernnca__phase2-v2__18eb7522ed5f/stage1_best.pth"
+        },
+        "data": {
+          "batch_size": 256,
+          "candidate_count": 464809,
+          "candidate_row_id_hash": "b268b56257c497f6a38df3c410db8cd0fcfe4056b642fc46034b74b27b3f7520",
+          "context_size": null,
+          "index_type": null,
+          "retrieval_backend": null,
+          "sample_rate": 0.1358102522433401,
+          "subsample": null,
+          "test_partition_accessed": false,
+          "total_rows": 581012,
+          "train_rows": 464809,
+          "validation_rows": 58101
+        },
+        "dataset": "covertype",
+        "dataset_name": "Covertype",
+        "environment": {
+          "cpu_count": 32,
+          "faiss_version": "1.14.1",
+          "git_sha": "b44c595561a89aa3c6e0c3beeaa1c99254beff78",
+          "gpu_count": 3,
+          "gpu_name": "NVIDIA RTX A6000",
+          "model": "modernnca",
+          "platform": "Linux-5.15.0-139-generic-x86_64-with-glibc2.31",
+          "protocol_version": "phase2-v2",
+          "python": "3.10.19",
+          "ram_bytes": 270048301056,
+          "study_name": "scale_smoke_covertype__modernnca__phase2-v2__18eb7522ed5f",
+          "study_signature": "18eb7522ed5f9c5c36629bcfbfe44d1da31ba8eefa270ab02010c3197a90cf02",
+          "torch_cuda_version": "12.1",
+          "torch_version": "2.5.1+cu121",
+          "upstream_reference": "modernnca-talent-08301d6-v1"
+        },
+        "memory": {
+          "max_cuda_memory_allocated": 8144030208,
+          "max_cuda_memory_reserved": 12419334144,
+          "oom": false,
+          "peak_cpu_rss_kib": 1536780
+        },
+        "model": "modernnca",
+        "resolved_config": {
+          "distance": "euclidean",
+          "dropout": 0.2993292420985183,
+          "learning_rate": 4.207053950287933e-05,
+          "nca_d_block": 977,
+          "nca_dim": 767,
+          "nca_n_blocks": 1,
+          "nca_sample_rate": 0.1358102522433401,
+          "nca_temperature": 1.0,
+          "plr_embedding_dim": 26,
+          "plr_frequency_scale": 1.3311216080736887,
+          "plr_n_frequencies": 86,
+          "sampling": "uniform_sns",
+          "weight_decay": 0
+        },
+        "retrieval": {
+          "candidate_comparisons_per_second": 922473468.5435975,
+          "candidate_count": 464809,
+          "evaluation_candidate_policy": "all_train_candidates",
+          "evaluation_mode": "exact_streaming_softmax",
+          "last_effective_candidate_count": 464809,
+          "last_query_count": 245,
+          "last_sampled_candidate_count": 464809,
+          "normalization_policy": "single_logical_candidate_batch",
+          "prediction_seconds": 61.19429177418351,
+          "queries_per_second": 8545.078059398407,
+          "row_id_hash": "b268b56257c497f6a38df3c410db8cd0fcfe4056b642fc46034b74b27b3f7520",
+          "sample_rate": 0.1358102522433401,
+          "sns_policy": "uniform_without_query_batch",
+          "storage_device": "cuda",
+          "total_candidate_comparisons": 56450110588,
+          "total_query_count": 522910,
+          "training_candidate_policy": "sample_train_then_readd_query_batch",
+          "upstream_reference": "TALENT@08301d670a7c854bcf3a73298763484ba58eecdb"
+        },
+        "retrieval_measurements": {
+          "candidate_comparisons_per_second": 922473468.5435975,
+          "effective_candidate_count": 464809,
+          "end_to_end_queries_per_second": 2156.270962011934,
+          "index_refresh_count": null,
+          "index_refresh_seconds": null,
+          "queries_per_second": 8545.078059398407,
+          "query_count": 522910,
+          "search_or_prediction_seconds": 61.19429177418351
+        },
+        "sampled_params": {
+          "dropout": 0.2993292420985183,
+          "learning_rate": 4.207053950287933e-05,
+          "nca_d_block": 977,
+          "nca_dim": 767,
+          "nca_n_blocks": 1,
+          "nca_sample_rate": 0.1358102522433401,
+          "plr_embedding_dim": 26,
+          "plr_frequency_scale": 1.3311216080736887,
+          "plr_n_frequencies": 86,
+          "weight_decay__zero_selector": 0.05808361216819946
+        },
+        "stage": 1,
+        "status": "PASS",
+        "timing": {
+          "context_or_index_setup_seconds": 5.659593563526869,
+          "epoch_training_seconds": 193.10422216076404,
+          "preprocessing_seconds": 1.033753956668079,
+          "total_seconds": 254.26694487873465,
+          "validation_seconds": 49.40240581519902
+        },
+        "training": {
+          "epochs_completed": 1,
+          "finite": true,
+          "loss": 0.21483161668436773,
+          "validation_metric": 0.971997039637872,
+          "validation_metric_name": "acc"
+        }
+      },
+      "stage2": {
+        "dataset": "covertype",
+        "elapsed_seconds": 900.2028951924294,
+        "failure_reason": "Exceeded 900 seconds",
+        "failure_type": "TimeoutExpired",
+        "model": "modernnca",
+        "stage": 2,
+        "status": "TIMEOUT",
+        "subsample": null,
+        "test_partition_accessed": false
+      }
+    }
+  ],
+  "cost_estimate": {
+    "available_gpu_count": 3,
+    "basis": "completed trial wall time; timeout durations are lower bounds; 9-dataset estimate uses the Adult/Covertype mean per model",
+    "disk_estimate_basis": "50 JSON artifacts plus one retained checkpoint per dataset/model; excludes SQLite and log overhead",
+    "estimated_hpo_disk_bytes": 90886878.0,
+    "ideal_wall_clock_hours_at_available_gpu_count_lower_bound": 44.157855023203105,
+    "nine_dataset_two_model_gpu_hours_lower_bound": 132.47356506960932,
+    "observed_matrix_fifty_trial_gpu_hours_lower_bound": 29.438570015468738,
+    "per_combination": [
+      {
+        "dataset": "adult",
+        "fifty_trial_gpu_hours": 2.277451951211939,
+        "is_lower_bound": false,
+        "model": "tabr",
+        "observed_trial_seconds": 163.97654048725963
+      },
+      {
+        "dataset": "adult",
+        "fifty_trial_gpu_hours": 2.1544946774115994,
+        "is_lower_bound": false,
+        "model": "modernnca",
+        "observed_trial_seconds": 155.12361677363515
+      },
+      {
+        "dataset": "covertype",
+        "fifty_trial_gpu_hours": 12.503805398061457,
+        "is_lower_bound": true,
+        "model": "tabr",
+        "observed_trial_seconds": 900.273988660425
+      },
+      {
+        "dataset": "covertype",
+        "fifty_trial_gpu_hours": 12.502817988783741,
+        "is_lower_bound": true,
+        "model": "modernnca",
+        "observed_trial_seconds": 900.2028951924294
+      }
+    ]
+  },
+  "decision": "NOT_READY_FOR_HPO",
+  "matrix": [
+    [
+      "adult",
+      "tabr"
+    ],
+    [
+      "adult",
+      "modernnca"
+    ],
+    [
+      "covertype",
+      "tabr"
+    ],
+    [
+      "covertype",
+      "modernnca"
+    ]
+  ],
+  "production_experiments_started": false,
+  "protocol_version": "phase2-v2"
+}

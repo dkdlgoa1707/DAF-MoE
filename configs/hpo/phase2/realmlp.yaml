@@ -1,4 +1,4 @@
-protocol_version: phase2-v1
+protocol_version: phase2-v2
 model_name: realmlp
 rank_included: true
 fixed:

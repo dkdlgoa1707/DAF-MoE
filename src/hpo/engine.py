@@ -8,7 +8,8 @@ import resource
 import time
 
 from src.data.provenance import current_git_sha, stable_hash
-from src.phase2_protocol import HPO_SEED, N_HPO_COMPLETE_TRIALS, PROTOCOL_VERSION
+from src.hpo.identity import StudyIdentity, resolve_study_storage
+from src.phase2_protocol import HPO_SEED, N_HPO_COMPLETE_TRIALS
 
 
 def _state_name(trial):
@@ -16,25 +17,40 @@ def _state_name(trial):
     return getattr(state, "name", str(state))
 
 
-def valid_complete_trials(study):
+def _expected_trial_attributes(study, identity=None):
+    signature = identity.signature if identity else study.user_attrs.get("study_signature")
+    search_hash = (
+        identity.components["search_space_hash"]
+        if identity
+        else study.user_attrs.get("search_space_hash")
+    )
+    if not signature or not search_hash:
+        raise RuntimeError("Study is missing canonical signature attributes.")
+    return signature, search_hash
+
+
+def valid_complete_trials(study, identity=None):
+    signature, search_hash = _expected_trial_attributes(study, identity)
     valid = []
     for trial in study.trials:
         value = getattr(trial, "value", None)
-        if _state_name(trial) == "COMPLETE" and value is not None and math.isfinite(float(value)):
+        attrs = getattr(trial, "user_attrs", {})
+        if (
+            _state_name(trial) == "COMPLETE"
+            and value is not None
+            and math.isfinite(float(value))
+            and attrs.get("study_signature") == signature
+            and attrs.get("search_space_hash") == search_hash
+        ):
             valid.append(trial)
     return valid
 
 
-def valid_complete_count(study):
-    return len(valid_complete_trials(study))
+def valid_complete_count(study, identity=None):
+    return len(valid_complete_trials(study, identity))
 
 
-def phase2_study_name(dataset_name, model_name):
-    dataset = str(dataset_name).lower().replace(" ", "_").replace("-", "_")
-    return f"{dataset}__{model_name}__{PROTOCOL_VERSION}"
-
-
-def create_phase2_study(dataset_name, model_name, direction, storage_url):
+def create_phase2_study(identity: StudyIdentity, direction, storage_url=None):
     try:
         import optuna
         from optuna.pruners import NopPruner
@@ -45,6 +61,7 @@ def create_phase2_study(dataset_name, model_name, direction, storage_url):
             "Optuna is required for Phase 2 HPO. Install requirements.txt."
         ) from exc
 
+    storage_url = resolve_study_storage(identity, storage_url)
     engine_kwargs = (
         {"connect_args": {"timeout": 60}}
         if storage_url.startswith("sqlite:///")
@@ -54,14 +71,27 @@ def create_phase2_study(dataset_name, model_name, direction, storage_url):
         url=storage_url,
         engine_kwargs=engine_kwargs,
     )
-    return optuna.create_study(
-        study_name=phase2_study_name(dataset_name, model_name),
+    study = optuna.create_study(
+        study_name=identity.study_name,
         storage=storage,
         load_if_exists=True,
         direction=direction,
         sampler=TPESampler(seed=HPO_SEED),
         pruner=NopPruner(),
     )
+    expected = identity.study_attributes
+    if study.user_attrs:
+        mismatched = {
+            key: (study.user_attrs.get(key), value)
+            for key, value in expected.items()
+            if study.user_attrs.get(key) != value
+        }
+        if mismatched:
+            raise RuntimeError(f"Refusing mismatched study resume: {mismatched}")
+    else:
+        for key, value in expected.items():
+            study.set_user_attr(key, value)
+    return study
 
 
 def run_until_valid_complete(
@@ -69,18 +99,19 @@ def run_until_valid_complete(
     objective,
     target=N_HPO_COMPLETE_TRIALS,
     max_attempts=None,
+    identity=None,
 ):
     """Continue one trial at a time until finite COMPLETE count reaches target."""
     attempts = 0
-    while valid_complete_count(study) < int(target):
+    while valid_complete_count(study, identity) < int(target):
         if max_attempts is not None and attempts >= int(max_attempts):
             raise RuntimeError(
                 f"Reached max_attempts={max_attempts} with "
-                f"{valid_complete_count(study)}/{target} valid COMPLETE trials."
+                f"{valid_complete_count(study, identity)}/{target} valid COMPLETE trials."
             )
         study.optimize(objective, n_trials=1, catch=(Exception,))
         attempts += 1
-    return valid_complete_trials(study)
+    return valid_complete_trials(study, identity)
 
 
 def _outcome_dict(outcome):
@@ -108,14 +139,21 @@ class TrialArtifactWriter:
         return path
 
 
-def make_guarded_objective(search_space, evaluator, n_rows, artifact_writer, study_name, task_type=None):
+def make_guarded_objective(
+    search_space, evaluator, n_rows, artifact_writer, study_identity, task_type=None
+):
     """Raise on every invalid trial so Optuna records FAIL, never fake COMPLETE."""
     def objective(trial):
         started = time.perf_counter()
+        if hasattr(trial, "set_user_attr"):
+            trial.set_user_attr("study_signature", study_identity.signature)
+            trial.set_user_attr("search_space_hash", search_space.schema_hash)
         base = {
-            "protocol_version": PROTOCOL_VERSION,
+            "protocol_version": study_identity.components["protocol_version"],
             "git_sha": current_git_sha(),
-            "study_name": study_name,
+            "study_name": study_identity.study_name,
+            "study_signature": study_identity.signature,
+            "study_signature_components": dict(study_identity.components),
             "trial_number": int(trial.number),
             "model_name": search_space.model_name,
             "search_space_hash": search_space.schema_hash,
@@ -139,7 +177,7 @@ def make_guarded_objective(search_space, evaluator, n_rows, artifact_writer, stu
                 }
             )
             base["artifact_hash"] = stable_hash(base)
-            artifact_writer.write(study_name, trial.number, base)
+            artifact_writer.write(study_identity.study_name, trial.number, base)
             if hasattr(trial, "set_user_attr"):
                 trial.set_user_attr("artifact_hash", base["artifact_hash"])
                 trial.set_user_attr("resolved_config", resolved)
@@ -156,7 +194,7 @@ def make_guarded_objective(search_space, evaluator, n_rows, artifact_writer, stu
                 }
             )
             base["artifact_hash"] = stable_hash(base)
-            artifact_writer.write(study_name, trial.number, base)
+            artifact_writer.write(study_identity.study_name, trial.number, base)
             raise
 
     return objective
