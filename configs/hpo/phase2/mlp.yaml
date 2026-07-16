@@ -1,0 +1,41 @@
+protocol_version: phase2-v1
+model_name: mlp
+rank_included: true
+fixed:
+  optimizer: adamw
+  scheduler: none
+  epochs: 400
+  patience: 16
+  preprocessing: rtdl_modified_quantile
+search:
+  n_layers:
+    type: conditional_by_n
+    threshold: 100000
+    at_most: {type: int, low: 1, high: 8}
+    above: {type: int, low: 1, high: 16}
+  first_width:
+    type: conditional_by_n
+    threshold: 100000
+    at_most: {type: int, low: 1, high: 512}
+    above: {type: int, low: 1, high: 1024}
+  middle_width:
+    type: conditional_by_n
+    threshold: 100000
+    at_most: {type: int, low: 1, high: 512}
+    above: {type: int, low: 1, high: 1024}
+  last_width:
+    type: conditional_by_n
+    threshold: 100000
+    at_most: {type: int, low: 1, high: 512}
+    above: {type: int, low: 1, high: 1024}
+  dropout:
+    type: zero_mixture
+    zero_probability: 0.5
+    nonzero: {type: uniform, low: 0.0, high: 0.5}
+  learning_rate: {type: log_uniform, low: 1.0e-5, high: 1.0e-2}
+  weight_decay:
+    type: zero_mixture
+    zero_probability: 0.5
+    nonzero: {type: log_uniform, low: 1.0e-6, high: 1.0e-3}
+  cat_embedding_dim: {type: int, low: 1, high: 64}
+forbidden: [ple_n_bins, ple_boundaries, n_experts, top_k]

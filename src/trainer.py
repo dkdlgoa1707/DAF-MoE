@@ -5,6 +5,7 @@ Manages the training loop, validation, checkpointing, and testing processes.
 Handles both standard baselines and DAF-MoE specific loss calculations.
 """
 
+import copy
 import os
 import json
 import time 
@@ -13,6 +14,27 @@ import torch.nn as nn
 from datetime import datetime
 from tqdm import tqdm
 from src.utils.metrics import Evaluator
+from src.data.provenance import stable_hash
+
+def compute_baseline_loss(outputs, targets, criterion, out_dim):
+    """Use mean member loss for ensembles and ordinary task loss otherwise."""
+    logits = outputs['logits']
+    logits_k = outputs.get('logits_k')
+    if logits_k is None:
+        if out_dim == 1:
+            return criterion(logits, targets.float().view_as(logits))
+        return criterion(logits, targets.long().view(-1))
+
+    batch_size, n_members, member_out_dim = logits_k.shape
+    if out_dim == 1:
+        expanded_targets = targets.float().view(batch_size, 1, 1).expand(
+            -1, n_members, -1
+        )
+        return criterion(logits_k, expanded_targets)
+    expanded_targets = targets.long().view(batch_size, 1).expand(-1, n_members)
+    return criterion(
+        logits_k.reshape(-1, member_out_dim), expanded_targets.reshape(-1)
+    )
 
 class Trainer:
     """
@@ -52,6 +74,12 @@ class Trainer:
             os.makedirs("checkpoints", exist_ok=True)
 
         self._retrieval_train_loader = None
+        self.best_epoch = -1
+        self.epochs_completed = 0
+        self.stopped_early = False
+        self._epochs_without_improvement = 0
+        self._best_state_dict = None
+        self._last_validation_improved = False
 
     def _get_retrieval_model(self):
         return self.model.module if isinstance(self.model, nn.DataParallel) else self.model
@@ -75,10 +103,10 @@ class Trainer:
             raise ValueError("Cannot wire retrieval context from an empty train loader.")
 
         context_inputs = {
-            key: torch.cat(parts, dim=0).to(self.device)
+            key: torch.cat(parts, dim=0).detach().cpu()
             for key, parts in input_parts.items()
         }
-        context_targets = torch.cat(target_parts, dim=0).to(self.device)
+        context_targets = torch.cat(target_parts, dim=0).detach().cpu()
 
         if has_candidates:
             model.set_candidates(context_inputs, context_targets)
@@ -90,6 +118,18 @@ class Trainer:
             self.logger.info(
                 f"ModernNCA train context wired: {len(context_targets)} rows"
             )
+
+        provenance = (
+            model.candidate_provenance()
+            if hasattr(model, 'candidate_provenance')
+            else None
+        )
+        if provenance is not None and hasattr(self.config, 'phase2_manifest'):
+            manifest = self.config.phase2_manifest
+            manifest['retrieval_candidates'] = provenance
+            payload = {key: value for key, value in manifest.items() if key != 'manifest_hash'}
+            manifest['manifest_hash'] = stable_hash(payload)
+        self.config.retrieval_candidate_provenance = provenance
 
     def train_epoch(self, loader, epoch):
         self.model.train()
@@ -110,21 +150,12 @@ class Trainer:
             
             # 2. Baselines: Standard Loss
             else:
-                logits_k = outputs.get('logits_k')
-                if logits_k is not None:
-                    # TabM paper: mean loss not loss of mean prediction
-                    B, k, out_dim = logits_k.shape
-                    if self.config.out_dim == 1:
-                        t = targets.float().view(B, 1, 1).expand(-1, k, -1)
-                        base_loss = self.criterion(logits_k, t)
-                    else:
-                        t = targets.long().view(B, 1).expand(-1, k).reshape(-1)
-                        base_loss = self.criterion(logits_k.reshape(-1, out_dim), t)
-                else:
-                    if self.config.out_dim == 1:
-                        base_loss = self.criterion(logits, targets.float().view_as(logits))
-                    else:
-                        base_loss = self.criterion(logits, targets.long().view(-1))
+                base_loss = compute_baseline_loss(
+                    outputs,
+                    targets,
+                    self.criterion,
+                    self.config.out_dim,
+                )
                 final_loss = base_loss + (outputs.get('aux_loss', 0) or 0)
             
             self.optimizer.zero_grad()
@@ -179,14 +210,33 @@ class Trainer:
                 is_best = True
                 self.best_metric = current_score
 
+        if is_best:
+            model = (
+                self.model.module
+                if isinstance(self.model, nn.DataParallel)
+                else self.model
+            )
+            self._best_state_dict = copy.deepcopy(model.state_dict())
+            self.best_epoch = epoch
+            self._epochs_without_improvement = 0
+        else:
+            self._epochs_without_improvement += 1
+        self._last_validation_improved = is_best
+
+        checkpoint_path = getattr(self.config, 'checkpoint_path', None)
+        if is_best and (self.verbose or checkpoint_path):
+            save_path = checkpoint_path or (
+                f"checkpoints/{self.config.dataset_name}_{self.config.model_name}_"
+                f"seed{self.config.seed}_best.pth"
+            )
+            checkpoint_dir = os.path.dirname(save_path)
+            if checkpoint_dir:
+                os.makedirs(checkpoint_dir, exist_ok=True)
+            torch.save(self._best_state_dict, save_path)
+
         if is_best and self.verbose:
-            # Save checkpoint with seed to prevent overwriting
-            save_path = f"checkpoints/{self.config.dataset_name}_{self.config.model_name}_seed{self.config.seed}_best.pth"
-            
-            state_dict = self.model.module.state_dict() if isinstance(self.model, nn.DataParallel) else self.model.state_dict()
-            torch.save(state_dict, save_path)
-            
             self.logger.info(f"    🏆 New Best Model Saved (Seed {self.config.seed})! ({self.target_metric.upper()}: {self.best_metric:.4f})")
+        return is_best
 
     def fit(self, train_loader, val_loader):
         self._retrieval_train_loader = train_loader
@@ -198,8 +248,26 @@ class Trainer:
         start_time = time.time()
         for epoch in range(self.config.epochs):
             self.train_epoch(train_loader, epoch)
-            self.validate(val_loader, epoch)
+            metrics = self.validate(val_loader, epoch)
+            self.epochs_completed = epoch + 1
+            patience = int(getattr(self.config, 'patience', 0))
+            if (
+                metrics
+                and patience > 0
+                and self._epochs_without_improvement >= patience
+            ):
+                self.stopped_early = True
+                if self.verbose:
+                    self.logger.info(
+                        f"Early stopping at epoch {epoch + 1}; "
+                        f"best epoch was {self.best_epoch + 1}."
+                    )
+                break
         total_train_time = time.time() - start_time
+
+        if self._best_state_dict is not None:
+            model = self.model.module if isinstance(self.model, nn.DataParallel) else self.model
+            model.load_state_dict(self._best_state_dict)
             
         if self.verbose:
             self.logger.info(f"\n✅ Training Finished. Best {self.target_metric.upper()}: {self.best_metric:.4f} (Time: {total_train_time:.2f}s)")

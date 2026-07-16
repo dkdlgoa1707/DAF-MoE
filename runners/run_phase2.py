@@ -1,14 +1,12 @@
-"""Phase 2 main experiment runner scaffold.
+"""Main Phase 2 HPO/final-evaluation entrypoint."""
 
-To be filled after the Phase 2 experiment design is finalized:
-- Dataset list (9 datasets)
-- Baseline models (Track B: TabR, TabPFN, SAINT, TabM, TabKAN)
-- Optuna HPO integration
-- 15-seed final evaluation
-"""
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from src.hpo.cli import main
 
 
-if __name__ == '__main__':
-    raise NotImplementedError(
-        'Phase 2 runner scaffold - implementation pending experiment design.'
-    )
+if __name__ == "__main__":
+    main()

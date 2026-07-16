@@ -1,0 +1,20 @@
+protocol_version: phase2-v1
+model_name: catboost
+rank_included: true
+fixed:
+  boosting_type: Plain
+  grow_policy: SymmetricTree
+  bootstrap_type: Bernoulli
+  iterations: 2000
+  od_type: Iter
+  od_wait: 300
+search:
+  depth: {type: int, low: 4, high: 10}
+  learning_rate: {type: log_uniform, low: 0.005, high: 0.1}
+  subsample: {type: uniform, low: 0.7, high: 1.0}
+  colsample_bylevel: {type: uniform, low: 0.85, high: 1.0}
+  l2_leaf_reg: {type: log_uniform, low: 1.0e-4, high: 5.0}
+  leaf_estimation_iterations: {type: log_uniform_int, low: 1, high: 20}
+  one_hot_max_size: {type: log_uniform_int, low: 8, high: 100}
+  max_ctr_complexity: {type: int, low: 2, high: 5}
+forbidden: []

@@ -29,9 +29,15 @@ class DAFMoETransformerV2(nn.Module):
             nn.Linear(config.d_emb, config.out_dim),
         )
 
-    def forward(self, x_numerical, x_categorical_idx, x_categorical_meta):
+    def forward(
+        self,
+        x_numerical,
+        x_categorical_idx,
+        x_categorical_meta,
+        x_numerical_missing=None,
+    ):
         h, r_j, feature_mask, psi_x = self.embedding(
-            x_numerical, x_categorical_idx, x_categorical_meta
+            x_numerical, x_categorical_idx, x_categorical_meta, x_numerical_missing
         )
 
         routing_history = []

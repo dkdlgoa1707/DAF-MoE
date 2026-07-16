@@ -86,6 +86,12 @@ results/scores/Mortality 30day_*.json
 mortality_analysis/
 subgroup_analysis/
 
+# Phase 2 runtime artifacts (configs and launch plans remain tracked)
+results/phase2/preflight_report.json
+results/phase2/hpo/
+results/phase2/trials/
+results/phase2/final/
+
 # ==========================
 # 9. CLAUDE.md
 # ==========================

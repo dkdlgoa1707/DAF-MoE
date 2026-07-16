@@ -1,0 +1,22 @@
+protocol_version: phase2-v1
+model_name: modernnca
+rank_included: true
+fixed:
+  nca_temperature: 1.0
+  distance: euclidean
+  sampling: uniform_sns
+search:
+  nca_n_blocks: {type: int, low: 0, high: 2}
+  nca_d_block: {type: int, low: 64, high: 1024}
+  nca_dim: {type: int, low: 64, high: 1024}
+  dropout: {type: uniform, low: 0.0, high: 0.5}
+  nca_sample_rate: {type: uniform, low: 0.05, high: 0.6}
+  learning_rate: {type: log_uniform, low: 1.0e-5, high: 1.0e-1}
+  weight_decay:
+    type: zero_mixture
+    zero_probability: 0.5
+    nonzero: {type: log_uniform, low: 1.0e-6, high: 1.0e-3}
+  plr_n_frequencies: {type: int, low: 16, high: 96}
+  plr_embedding_dim: {type: int, low: 16, high: 32}
+  plr_frequency_scale: {type: log_uniform, low: 0.01, high: 10.0}
+forbidden: [ple_n_bins, ple_boundaries, n_experts, top_k]

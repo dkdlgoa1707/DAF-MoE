@@ -56,6 +56,9 @@ class DAFEmbeddingV2(nn.Module):
                 f"ple_boundaries shape {boundary_shape} != expected {expected_shape}"
             )
         self.ple_encoder = PLEEncoder(boundaries, self.d_emb)
+        self.numerical_missing_embedding = nn.Parameter(
+            torch.zeros(1, self.n_numerical, self.d_emb)
+        )
 
         self.categorical_embed = nn.Embedding(config.total_cats, self.d_emb)
 
@@ -65,9 +68,19 @@ class DAFEmbeddingV2(nn.Module):
         self.layer_norm = nn.LayerNorm(self.d_emb)
         self.gelu = nn.GELU()
 
-    def forward(self, x_numerical, x_categorical_idx, x_categorical_meta):
+    def forward(
+        self,
+        x_numerical,
+        x_categorical_idx,
+        x_categorical_meta,
+        x_numerical_missing=None,
+    ):
         h_num = self.gelu(self.ple_encoder(x_numerical[:, :, 0]))
         h_cat = self.gelu(self.categorical_embed(x_categorical_idx))
+        if x_numerical_missing is not None:
+            h_num = h_num + (
+                x_numerical_missing.unsqueeze(-1) * self.numerical_missing_embedding
+            )
 
         h_merged = torch.cat([h_num, h_cat], dim=1)
         h_0 = self.layer_norm(h_merged + self.feature_identity)

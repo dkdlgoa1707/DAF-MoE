@@ -20,9 +20,9 @@ BASELINES = [
     "mlp",
     "resnet",
     "tabm",
+    "tabm_ple",
     "tabr",
     "modernnca",
-    "realmlp",
 ]
 
 
@@ -32,6 +32,9 @@ def make_synthetic_config(task):
     config.n_categorical = 3
     config.n_features = 11
     config.total_cats = 20
+    config.cat_cardinalities = [7, 7, 7]
+    config.cat_train_cardinalities = [6, 6, 6]
+    config.cat_known_cardinalities = [5, 5, 5]
     config.d_emb = 96
     config.d_ff = int(config.d_emb * config.d_ff_factor)
     config.task_type = "regression" if task == "regression" else "classification"
@@ -43,11 +46,15 @@ def synthetic_inputs(config, batch_size):
     numerical = torch.randn(batch_size, config.n_numerical, 3)
     numerical[:, :, 1] = torch.rand(batch_size, config.n_numerical)
     categorical = torch.randint(
-        0, config.total_cats, (batch_size, config.n_categorical)
+        0, min(config.cat_cardinalities), (batch_size, config.n_categorical)
     )
     categorical_meta = torch.rand(batch_size, config.n_categorical, 2)
     return {
         "x_numerical": numerical,
+        "x_numerical_values": numerical[:, :, 0],
+        "x_numerical_missing": torch.zeros(
+            batch_size, config.n_numerical
+        ),
         "x_categorical_idx": categorical,
         "x_categorical_meta": categorical_meta,
     }
@@ -69,6 +76,13 @@ def attach_retrieval_context(model, config, task):
 def verify(model_name, task):
     config = make_synthetic_config(task)
     config.model_name = model_name
+    if model_name in {"tabr", "modernnca"} and task != "regression":
+        config.out_dim = 2
+    if model_name == "tabm_ple":
+        config.ple_n_bins = 4
+        config.ple_boundaries = [
+            [-2.0, -1.0, 0.0, 1.0, 2.0] for _ in range(config.n_numerical)
+        ]
     model = create_model(config).eval()
     attach_retrieval_context(model, config, task)
 
@@ -153,6 +167,61 @@ def verify_trainer_context_wiring():
     )
 
 
+def _retrieval_inputs(values, row_ids):
+    values = torch.as_tensor(values, dtype=torch.float32).reshape(-1, 1)
+    return {
+        "x_numerical_values": values,
+        "x_numerical_missing": torch.zeros_like(values),
+        "x_categorical_idx": torch.empty(len(values), 0, dtype=torch.long),
+        "row_ids": torch.as_tensor(row_ids, dtype=torch.long),
+    }
+
+
+def verify_retrieval_behavior():
+    candidates = _retrieval_inputs([0.0, 0.0, 1.0, 2.0], [10, 11, 12, 13])
+    query = _retrieval_inputs([0.0], [10])
+    labels = torch.tensor([0, 1, 0, 1])
+
+    for model_name in ("tabr", "modernnca"):
+        config = DAFConfig(
+            model_name=model_name,
+            task_type="classification",
+            out_dim=2,
+            n_numerical=1,
+            n_categorical=0,
+            n_features=1,
+            cat_cardinalities=[],
+            cat_train_cardinalities=[],
+            cat_known_cardinalities=[],
+            tabr_n_candidates=96,
+            tabr_d_main=8,
+            tabr_predictor_n_blocks=1,
+            nca_dim=8,
+            nca_n_neighbors=3,
+            plr_n_frequencies=3,
+            plr_embedding_dim=4,
+            retrieval_candidate_chunk_size=2,
+        )
+        model = create_model(config).eval()
+        if model_name == "tabr":
+            model.set_candidates(candidates, labels)
+        else:
+            model.set_train_context(candidates, labels)
+        with torch.no_grad():
+            history = model(**query)["history"]
+        indices = history["retrieval_indices"][0].tolist()
+        assert 0 not in indices, f"{model_name} did not exclude its stable row ID"
+        assert 1 in indices, f"{model_name} incorrectly removed a duplicate feature row"
+        store = model.candidate_store
+        assert store.targets.device.type == "cpu"
+        assert all(value.device.type == "cpu" for value in store.inputs.values())
+
+    print(
+        "\n[retrieval behavior]\n"
+        "  exact row-ID self-exclusion + duplicate preservation + CPU store PASS"
+    )
+
+
 def main():
     print("=" * 68)
     print("Phase 2 Baseline Verification")
@@ -177,6 +246,12 @@ def main():
     except Exception as exc:
         failures.append(("trainer", "context_wiring", exc))
         print(f"\n[trainer context wiring]\n  FAIL: {exc}")
+
+    try:
+        verify_retrieval_behavior()
+    except Exception as exc:
+        failures.append(("retrieval", "behavior", exc))
+        print(f"\n[retrieval behavior]\n  FAIL: {exc}")
 
     print("\n" + "=" * 68)
     if failures:

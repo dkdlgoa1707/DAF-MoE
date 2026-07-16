@@ -20,15 +20,16 @@ scikit-posthocs>=0.8.0
 # ==========================================
 # 🌲 Tabular Benchmarks (NEW - Local Experiments)
 # ==========================================
-xgboost>=2.0.0        # Supports GPU histogram-based training
-catboost>=1.2.0       # Specialized for categorical features (GPU supported)
+xgboost==2.1.4        # Phase 2 native categorical protocol pin
+catboost==1.2.10      # Phase 2 native categorical protocol pin
 lightgbm>=4.0.0       # (Optional) Common baseline model
-tabicl>=0.1           # TabICL pretrained foundation model
+pytabkit[models]==1.7.3  # Official RealMLP-HPO pipeline
+tabicl==2.1.1         # TabICLv2 classifier/regressor
 
 # ==========================================
 # 🔍 HPO & Experiment Tracking
 # ==========================================
-optuna>=3.0.0         # Hyperparameter optimization
+optuna==4.9.0         # Hyperparameter optimization
 tensorboard>=2.13.0   # Training log visualization
 plotly>=5.0.0         # Optuna visualization (interactive)
 kaleido               # Plotly image export (png, etc.)

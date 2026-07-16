@@ -10,6 +10,23 @@ def get_dataloaders(config, data_cfg):
     """
     Loads raw CSV, applies DAF-preprocessing, and returns Train/Val/Test DataLoaders.
     """
+    model_name = config.model_name.lower()
+    phase2_neural_models = {
+        'mlp',
+        'resnet',
+        'ft_transformer',
+        'tabm',
+        'tabm_ple',
+        'tabr',
+        'modernnca',
+    }
+    if model_name.startswith('daf_moe_v2') or model_name in phase2_neural_models:
+        from .phase2_loader import get_phase2_dataloaders
+        from .splits import load_raw_dataset
+
+        raw_dataset = load_raw_dataset(data_cfg)
+        return get_phase2_dataloaders(config, raw_dataset)
+
     print(f"📂 Loading Data from: {data_cfg['csv_path']}")
     df = pd.read_csv(data_cfg['csv_path'], skipinitialspace=True)
 

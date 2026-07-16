@@ -48,9 +48,19 @@ def load_config(yaml_path):
     """Loads configuration from a YAML file and its linked data config."""
     config = DAFConfig()
     with open(yaml_path, 'r') as f:
-        exp_args = yaml.safe_load(f)
+        exp_args = yaml.safe_load(f) or {}
+    unknown_fields = sorted(key for key in exp_args if not hasattr(config, key))
+    if unknown_fields:
+        raise ValueError(f"Unknown configuration fields: {unknown_fields}")
     for k, v in exp_args.items():
-        if hasattr(config, k): setattr(config, k, v)
+        setattr(config, k, v)
+    config.explicit_fields = frozenset(exp_args)
+
+    if (
+        config.model_name.lower() in {'mlp', 'resnet'}
+        and 'epochs' not in config.explicit_fields
+    ):
+        config.epochs = 400
     
     # Load associated data configuration
     if config.data_config_path:

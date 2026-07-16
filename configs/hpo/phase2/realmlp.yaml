@@ -1,0 +1,32 @@
+protocol_version: phase2-v1
+model_name: realmlp
+rank_included: true
+fixed:
+  estimator_family: pytabkit-realmlp
+  external_hpo: optuna-tpe
+  regression_label_smoothing: 0.0
+search:
+  numerical_embedding: {type: categorical, choices: [null, PBLD, PL, PLR]}
+  scaling_layer:
+    type: weighted_categorical
+    choices: [true, false]
+    weights: [0.6, 0.4]
+  learning_rate: {type: log_uniform, low: 0.02, high: 0.3}
+  dropout:
+    type: weighted_categorical
+    choices: [0.0, 0.15, 0.3]
+    weights: [0.3, 0.5, 0.2]
+  activation: {type: categorical, choices: [ReLU, SELU, Mish]}
+  hidden_shape:
+    type: weighted_categorical
+    choices: [[256, 256, 256], [64, 64, 64, 64, 64], [512]]
+    weights: [0.6, 0.2, 0.2]
+  weight_decay: {type: categorical, choices: [0.0, 0.02]}
+  first_embedding_init_std: {type: log_uniform, low: 0.05, high: 0.5}
+  label_smoothing:
+    type: weighted_categorical
+    choices: [0.0, 0.1]
+    weights: [0.3, 0.7]
+    when_task: classification
+    otherwise: 0.0
+forbidden: [n_experts, top_k, ple_n_bins, ple_boundaries]

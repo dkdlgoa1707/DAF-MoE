@@ -34,6 +34,9 @@ class DAFConfig:
     n_categorical: int = 0
     n_features: int = 0
     total_cats: int = 0
+    cat_cardinalities: Optional[List[int]] = None
+    cat_train_cardinalities: Optional[List[int]] = None
+    cat_known_cardinalities: Optional[List[int]] = None
     
     task_type: str = 'classification'  # 'classification' or 'regression'
     out_dim: int = 1
@@ -60,6 +63,11 @@ class DAFConfig:
     # Internal Dimension Factors
     d_ff_factor: float = 1.33       # FFN expansion factor
     d_hidden_factor: float = 2.0    # Hidden layer factor for ResNet
+    cat_embedding_dim: int = 16
+    first_width: Optional[int] = None
+    middle_width: Optional[int] = None
+    last_width: Optional[int] = None
+    hidden_dropout: Optional[float] = None
     
     # Transformer Specific
     n_heads: int = 8
@@ -81,6 +89,7 @@ class DAFConfig:
     lambda_spec: float = 0.1        # Specialization loss weight
     lambda_repel: float = 0.1       # Centroid repulsion loss weight
     lambda_bal: float = 0.001       # Load balancing loss weight
+    regression_target_policy: str = "identity"
 
     # ==========================================
     # 6. Feature Preprocessing
@@ -111,6 +120,7 @@ class DAFConfig:
     # 8. TabM Specific Parameters
     # ==========================================
     k: int = 32                          # BatchEnsemble size (number of implicit submodels)
+    tabm_ple_embedding_dim: int = 16
 
     # ==========================================
     # 9. Phase 2 Baseline Specific Parameters
@@ -118,10 +128,27 @@ class DAFConfig:
     # TabR
     tabr_n_candidates: int = 96
     tabr_temperature: float = 1.0
+    tabr_d_main: int = 128
+    tabr_d_multiplier: float = 2.0
+    tabr_encoder_n_blocks: int = 0
+    tabr_predictor_n_blocks: int = 1
+    tabr_context_dropout: float = 0.1
+    tabr_dropout0: float = 0.1
+    tabr_dropout1: float = 0.0
 
     # ModernNCA
     nca_temperature: float = 1.0
     nca_n_neighbors: int = -1
+    nca_dim: int = 128
+    nca_d_block: int = 512
+    nca_n_blocks: int = 0
+    nca_sample_rate: float = 0.5
+
+    # Retrieval numerical embedding and memory
+    plr_n_frequencies: int = 48
+    plr_embedding_dim: int = 32
+    plr_frequency_scale: float = 0.01
+    retrieval_candidate_chunk_size: int = 4096
 
     # RealMLP
     realmlp_hidden_dim: int = 256

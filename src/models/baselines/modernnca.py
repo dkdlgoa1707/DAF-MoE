@@ -1,11 +1,19 @@
-"""ModernNCA baseline adapted from the official TALENT implementation.
+"""Canonical ModernNCA with CPU-backed stochastic neighbor sampling.
 
-Reference: https://github.com/LAMDA-Tabular/TALENT
+Architecture reference: TALENT commit
+08301d670a7c854bcf3a73298763484ba58eecdb.
 """
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+
+from .retrieval import (
+    CandidateStore,
+    OneHotWithUnknownIgnored,
+    PLREmbeddingsLite,
+    streaming_topk,
+)
 
 
 class _NCABlock(nn.Module):
@@ -20,130 +28,211 @@ class _NCABlock(nn.Module):
         )
 
     def forward(self, x):
-        return x + self.block(x)
+        return self.block(x)
 
 
 class ModernNCAWrapper(nn.Module):
-    """Learn an embedding space and predict from soft nearest neighbours."""
+    """ICLR 2025 ModernNCA with Euclidean soft-neighbor prediction."""
+
+    upstream_reference = "TALENT@08301d670a7c854bcf3a73298763484ba58eecdb"
 
     def __init__(self, config):
         super().__init__()
-        self.d_emb = config.d_token if config.d_token is not None else config.d_emb
-        self.n_numerical = config.n_numerical
-        self.n_categorical = config.n_categorical
-        self.out_dim = config.out_dim
+        self.n_numerical = int(config.n_numerical)
+        self.out_dim = int(config.out_dim)
         self.is_regression = config.task_type == "regression"
-        self.temperature = float(getattr(config, "nca_temperature", 1.0))
-        self.n_neighbors = int(getattr(config, "nca_n_neighbors", -1))
+        self.temperature = float(config.nca_temperature)
+        if self.temperature != 1.0:
+            raise ValueError("Phase 2 ModernNCA fixes temperature=1.0.")
+        self.sample_rate = float(config.nca_sample_rate)
+        if not 0.0 < self.sample_rate <= 1.0:
+            raise ValueError("ModernNCA sample_rate must be in (0, 1].")
+        self.n_neighbors = int(config.nca_n_neighbors)
+        self.candidate_chunk_size = int(config.retrieval_candidate_chunk_size)
 
-        self.num_proj = nn.ModuleList(
-            nn.Linear(1, self.d_emb) for _ in range(self.n_numerical)
-        )
-        self.cat_embed = (
-            nn.Embedding(config.total_cats + 1, self.d_emb)
-            if self.n_categorical
+        self.num_embeddings = (
+            PLREmbeddingsLite(
+                self.n_numerical,
+                int(config.plr_n_frequencies),
+                float(config.plr_frequency_scale),
+                int(config.plr_embedding_dim),
+            )
+            if self.n_numerical
             else None
         )
-        input_dim = (self.n_numerical + self.n_categorical) * self.d_emb
-        self.encoder = nn.Linear(input_dim, self.d_emb)
-        self.blocks = nn.ModuleList(
-            _NCABlock(self.d_emb, 2 * self.d_emb, config.dropout)
-            for _ in range(max(0, config.n_layers - 1))
+        train_cardinalities = list(
+            getattr(config, "cat_train_cardinalities", None) or []
         )
-        self.final_norm = nn.BatchNorm1d(self.d_emb) if self.blocks else nn.Identity()
-        self.head = nn.Linear(self.d_emb, self.out_dim)
-
-        self.register_buffer("train_x_numerical", torch.empty(0), persistent=False)
-        self.register_buffer(
-            "train_x_categorical", torch.empty(0, dtype=torch.long), persistent=False
+        if len(train_cardinalities) != config.n_categorical:
+            raise ValueError("ModernNCA requires train-fitted categorical cardinalities.")
+        self.one_hot_encoder = OneHotWithUnknownIgnored(train_cardinalities)
+        d_in = (
+            self.n_numerical * int(config.plr_embedding_dim)
+            + self.n_numerical
+            + self.one_hot_encoder.output_dim
         )
-        self.register_buffer("train_labels", torch.empty(0), persistent=False)
-
-    def set_train_context(self, x_numerical, x_categorical_idx=None, train_y=None):
-        """Set the training rows and labels used by the NCA prediction rule."""
-        if isinstance(x_numerical, dict):
-            inputs = x_numerical
-            if train_y is None:
-                train_y = x_categorical_idx
-            x_numerical = inputs["x_numerical"]
-            x_categorical_idx = inputs["x_categorical_idx"]
-        if x_categorical_idx is None or train_y is None:
-            raise ValueError(
-                "ModernNCA context requires numerical, categorical, and label tensors."
-            )
-
-        self.train_x_numerical = x_numerical.detach()
-        self.train_x_categorical = x_categorical_idx.detach().long()
-        self.train_labels = train_y.detach().reshape(-1)
-
-    def clear_train_context(self):
-        device = self.train_labels.device
-        self.train_x_numerical = torch.empty(0, device=device)
-        self.train_x_categorical = torch.empty(0, dtype=torch.long, device=device)
-        self.train_labels = torch.empty(0, device=device)
-
-    def _embed(self, x_numerical, x_categorical_idx):
-        pieces = []
-        values = x_numerical[:, :, :1]
-        pieces.extend(proj(values[:, i]) for i, proj in enumerate(self.num_proj))
-        if self.cat_embed is not None:
-            cat_tokens = self.cat_embed(x_categorical_idx.long())
-            pieces.extend(cat_tokens[:, i] for i in range(self.n_categorical))
-        if not pieces:
+        if d_in <= 0:
             raise ValueError("ModernNCA requires at least one input feature.")
 
-        x = self.encoder(torch.cat(pieces, dim=-1))
-        for block in self.blocks:
+        dim = int(config.nca_dim)
+        n_blocks = int(config.nca_n_blocks)
+        if n_blocks < 0:
+            raise ValueError("ModernNCA n_blocks cannot be negative.")
+        self.encoder = nn.Linear(d_in, dim)
+        self.post_blocks = nn.ModuleList(
+            [
+                _NCABlock(dim, int(config.nca_d_block), float(config.dropout))
+                for _ in range(n_blocks)
+            ]
+        )
+        self.final_normalization = nn.BatchNorm1d(dim) if n_blocks else None
+        self.candidate_store = None
+        self.last_sampled_candidate_count = 0
+
+    def set_train_context(self, inputs, targets):
+        self.candidate_store = CandidateStore(inputs, targets)
+
+    def clear_train_context(self):
+        self.candidate_store = None
+
+    def candidate_provenance(self):
+        return None if self.candidate_store is None else self.candidate_store.provenance
+
+    def _feature_vector(self, inputs):
+        values = inputs["x_numerical_values"]
+        parts = []
+        if self.num_embeddings is not None:
+            parts.append(self.num_embeddings(values).flatten(1))
+            parts.append(inputs["x_numerical_missing"].float())
+        if self.one_hot_encoder.train_cardinalities:
+            parts.append(self.one_hot_encoder(inputs["x_categorical_idx"].long()))
+        return torch.cat(parts, dim=1).float()
+
+    def _embed(self, inputs):
+        x = self.encoder(self._feature_vector(inputs))
+        for block in self.post_blocks:
             x = block(x)
-        return self.final_norm(x)
+        if self.final_normalization is not None:
+            x = self.final_normalization(x)
+        return x
 
-    def _nca_prediction(self, query, candidates):
-        distances = torch.cdist(query, candidates)
-        if candidates.shape[0] > 1:
-            nearest_distances, nearest_indices = distances.min(dim=1)
-            has_self = torch.isclose(
-                nearest_distances,
-                torch.zeros_like(nearest_distances),
-                atol=1e-8,
-                rtol=0.0,
-            )
-            rows = torch.arange(query.shape[0], device=query.device)[has_self]
-            self_mask = torch.zeros_like(distances, dtype=torch.bool)
-            self_mask[rows, nearest_indices[has_self]] = True
-            distances = distances.masked_fill(self_mask, torch.inf)
-
-        if 0 < self.n_neighbors < candidates.shape[0]:
-            distances, indices = distances.topk(self.n_neighbors, largest=False)
-            labels = self.train_labels[indices]
+    def _sample_candidate_indices(self):
+        if self.candidate_store is None:
+            raise RuntimeError("ModernNCA training context has not been set.")
+        n_candidates = len(self.candidate_store)
+        if not self.training:
+            indices = torch.arange(n_candidates)
         else:
-            labels = self.train_labels.unsqueeze(0).expand(query.shape[0], *self.train_labels.shape)
+            sample_size = max(1, int(n_candidates * self.sample_rate))
+            indices = torch.randperm(n_candidates)[:sample_size]
+        self.last_sampled_candidate_count = len(indices)
+        return indices
 
-        weights = F.softmax(-distances / max(self.temperature, 1e-6), dim=-1)
+    def _target_values(self, labels, dtype):
         if self.is_regression:
-            return torch.sum(weights * labels.float().reshape(labels.shape[0], -1), dim=-1, keepdim=True)
+            return labels.float().unsqueeze(-1)
+        return F.one_hot(labels.long(), self.out_dim).to(dtype)
 
-        if self.out_dim == 1:
-            probabilities = torch.sum(
-                weights * labels.float().reshape(labels.shape[0], -1), dim=-1
-            ).clamp(1e-6, 1.0 - 1e-6)
-            return torch.logit(probabilities).unsqueeze(-1)
+    def _topk_prediction(self, query, query_row_ids, candidate_indices):
+        distances, indices = streaming_topk(
+            query,
+            query_row_ids,
+            self.candidate_store,
+            self._embed,
+            min(self.n_neighbors, len(candidate_indices)),
+            self.candidate_chunk_size,
+            candidate_indices=candidate_indices,
+            squared=False,
+        )
+        selected_inputs, labels, _ = self.candidate_store.gather(indices, query.device)
+        flat_inputs = {
+            name: value.flatten(0, 1) for name, value in selected_inputs.items()
+        }
+        keys = self._embed(flat_inputs).reshape(query.shape[0], indices.shape[1], -1)
+        distances = torch.linalg.vector_norm(query[:, None, :] - keys, dim=-1)
+        weights = F.softmax(-distances / self.temperature, dim=-1)
+        values = self._target_values(labels, query.dtype)
+        prediction = torch.sum(weights.unsqueeze(-1) * values, dim=1)
+        return prediction, {
+            "retrieval_indices": indices.detach(),
+            "retrieval_weights": weights.detach(),
+        }
 
-        one_hot = F.one_hot(labels.long(), num_classes=self.out_dim).to(query.dtype)
-        probabilities = torch.sum(weights[..., None] * one_hot, dim=1)
-        return torch.log(probabilities.clamp_min(1e-7))
+    def _full_prediction(self, query, query_row_ids, candidate_indices):
+        device = query.device
+        query_ids = None if query_row_ids is None else query_row_ids.to(device).long()
+        running_max = torch.full((len(query),), -torch.inf, device=device)
+        denominator = torch.zeros(len(query), device=device)
+        numerator = torch.zeros(len(query), self.out_dim, device=device)
 
-    def forward(self, x_numerical, x_categorical_idx, **kwargs):
-        query = self._embed(x_numerical, x_categorical_idx)
-        logits = self.head(query)
-        if self.train_labels.numel():
-            candidates = self._embed(
-                self.train_x_numerical, self.train_x_categorical
+        for _, cpu_inputs, cpu_labels, cpu_row_ids in self.candidate_store.iter_chunks(
+            self.candidate_chunk_size, candidate_indices
+        ):
+            inputs = {name: value.to(device) for name, value in cpu_inputs.items()}
+            keys = self._embed(inputs)
+            scores = -torch.cdist(query, keys, p=2) / self.temperature
+            if query_ids is not None:
+                scores = scores.masked_fill(
+                    query_ids[:, None] == cpu_row_ids.to(device)[None, :],
+                    -torch.inf,
+                )
+            chunk_max = scores.max(dim=1).values
+            new_max = torch.maximum(running_max, chunk_max)
+            old_scale = torch.where(
+                torch.isfinite(running_max),
+                torch.exp(running_max - new_max),
+                torch.zeros_like(running_max),
             )
-            logits = self._nca_prediction(query, candidates)
+            weights = torch.where(
+                torch.isfinite(new_max[:, None]),
+                torch.exp(scores - new_max[:, None]),
+                torch.zeros_like(scores),
+            )
+            values = self._target_values(cpu_labels.to(device), query.dtype)
+            denominator = denominator * old_scale + weights.sum(dim=1)
+            numerator = numerator * old_scale.unsqueeze(-1) + weights @ values
+            running_max = new_max
 
+        if (denominator <= 0).any():
+            raise ValueError("No valid ModernNCA candidate remains after row-ID exclusion.")
+        return numerator / denominator.unsqueeze(-1), {
+            "sampled_candidate_count": self.last_sampled_candidate_count,
+        }
+
+    def forward(
+        self,
+        x_numerical_values,
+        x_numerical_missing,
+        x_categorical_idx,
+        row_ids=None,
+        **kwargs,
+    ):
+        if self.candidate_store is None:
+            raise RuntimeError("ModernNCA training context has not been set.")
+        inputs = {
+            "x_numerical_values": x_numerical_values,
+            "x_numerical_missing": x_numerical_missing,
+            "x_categorical_idx": x_categorical_idx,
+        }
+        query = self._embed(inputs)
+        candidate_indices = self._sample_candidate_indices()
+        if self.n_neighbors > 0:
+            prediction, history = self._topk_prediction(
+                query, row_ids, candidate_indices
+            )
+        else:
+            prediction, history = self._full_prediction(
+                query, row_ids, candidate_indices
+            )
+
+        logits = (
+            prediction
+            if self.is_regression
+            else prediction.clamp_min(1e-7).log()
+        )
         return {
             "logits": logits,
             "aux_loss": None,
-            "history": None,
+            "history": history,
             "psi_x": None,
         }

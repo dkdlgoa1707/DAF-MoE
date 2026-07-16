@@ -58,8 +58,27 @@ class Evaluator:
                     results['auprc'] = average_precision_score(y_true_eval, y_prob)
                 except ValueError:
                     results['auprc'] = 0.0
+
+            # 2. Binary classification represented by two class logits
+            elif y_pred.shape[1] == 2 and np.unique(y_true).size <= 2:
+                y_prob_matrix = F.softmax(torch.tensor(y_pred), dim=1).numpy()
+                y_prob = y_prob_matrix[:, 1]
+                y_true_eval = y_true.flatten().astype(int)
+                y_pred_label = np.argmax(y_prob_matrix, axis=1)
+                results['acc'] = accuracy_score(y_true_eval, y_pred_label)
+                results['f1'] = f1_score(y_true_eval, y_pred_label, average='macro')
+                try:
+                    results['auroc'] = roc_auc_score(y_true_eval, y_prob)
+                except ValueError:
+                    results['auroc'] = 0.5
+                try:
+                    results['auprc'] = average_precision_score(
+                        y_true_eval, y_prob
+                    )
+                except ValueError:
+                    results['auprc'] = 0.0
                 
-            # 2. Multi-Class Classification
+            # 3. Multi-Class Classification
             else:
                 y_prob = F.softmax(torch.tensor(y_pred), dim=1).numpy()
                 y_true_eval = y_true.flatten().astype(int)

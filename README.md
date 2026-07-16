@@ -90,42 +90,74 @@ data/
 
 ---
 
-## 🚀 3. Reproduction (Main Results)
+## 🚀 3. Phase 2 Readiness and Execution
 
-We provide the **best hyperparameter configurations** in `configs/experiments/*_best.yaml`. You can reproduce the results reported in the paper (Table 2) using the following scripts.
+Phase 2 uses one protocol-aware entrypoint for the 11 main methods and the
+secondary TabM† control. Before starting any HPO, run the readiness gate:
 
-### A. Deep Learning Models (15 Seeds)
+```bash
+bash scripts/phase2_preflight.sh
+```
+
+The gate checks the 9 dataset files, model/adaptor routing, exact dependency
+versions, protocol constants, and the full smoke suite. It prints
+`READY_FOR_HPO` only when no blocker remains. It also generates, but does not
+execute, all dataset/model commands in `scripts/phase2_launch_commands.sh`.
+The machine-readable report is written to
+`results/phase2/preflight_report.json`.
+
+### A. Hyperparameter Optimization
+
+```bash
+python runners/run_phase2.py hpo \
+  --base-config configs/experiments/phase2/base/adult.yaml \
+  --search-space configs/hpo/phase2/mlp.yaml \
+  --best-output configs/experiments/phase2/mlp/adult_best.yaml \
+  --device cuda
+```
+
+HPO is fixed to Optuna TPE seed 42 and 50 finite `COMPLETE` trials. Failed,
+OOM, invalid, and nonfinite trials do not count. TabICLv2 is fixed and has no
+HPO command.
+
+### B. Final Evaluation
+
+```bash
+python runners/run_phase2.py final \
+  --base-config configs/experiments/phase2/base/adult.yaml \
+  --search-space configs/hpo/phase2/mlp.yaml \
+  --best-config configs/experiments/phase2/mlp/adult_best.yaml \
+  --device cuda
+```
+
+The default final seed registry is 43 through 57. Each seed creates a fresh raw
+split and train-fitted preprocessor; seed 42 is rejected. Result reuse requires
+an exact protocol/config/split/preprocessing manifest match.
+
+For fixed TabICLv2, omit `--best-config`:
+
+```bash
+python runners/run_phase2.py final \
+  --base-config configs/experiments/phase2/base/adult.yaml \
+  --search-space configs/hpo/phase2/tabicl.yaml
+```
+
+XGBoost, CatBoost, RealMLP, and TabICLv2 are dispatched through their
+official/native execution branch and never through the DAF preprocessor. See
+`docs/phase2_experiment_protocol.md`, `docs/phase2_hpo_and_execution.md`, and
+`docs/phase2_implementation_status.md` for the exact contracts and pins.
+
+---
+
+## ⚡ 4. Legacy v1/v1.5 Reproduction
+
+The original best-config runner remains available for the v1/v1.5 result
+layout. It is not the Phase 2 HPO or final-evaluation entrypoint.
 
 ```bash
 # Syntax: bash scripts/reproduce_results.sh <CONFIG_PATH> [GPU_ID]
 
-# Example: Reproduce DAF-MoE on Adult dataset
 bash scripts/reproduce_results.sh configs/experiments/adult_daf_moe_best.yaml 0
-
-```
-
-### B. Tree-Based Models (XGBoost / CatBoost)
-
-```bash
-# Run evaluation for XGBoost on Adult dataset
-python runners/run_trees.py --dataset adult --model xgboost --eval
-
-```
-
----
-
-## ⚡ 4. Hyperparameter Optimization (Optional)
-
-To re-tune hyperparameters from scratch using **Optuna**:
-
-```bash
-# Syntax: bash scripts/run_hpo.sh <BASE_CONFIG> <HPO_SEARCH_SPACE> <METRIC> <TRIALS> <GPU_ID>
-
-# Example: Tune DAF-MoE on Higgs dataset
-bash scripts/run_hpo.sh \
-    configs/experiments/higgs_small_daf_moe.yaml \
-    configs/hpo/daf_moe.yaml \
-    acc 50 0
 
 ```
 
@@ -207,7 +239,8 @@ DAF-MoE/
 ├── analysis/               # Analysis & Evaluation scripts
 ├── results/                # Output logs
 ├── train.py                # Training entry point
-├── tune.py                 # HPO entry point
+├── runners/run_phase2.py   # Phase 2 HPO/final entry point
+├── tune.py                 # Retired legacy HPO entry point (fail-fast)
 └── setup.py                # Package installation script
 
 ```

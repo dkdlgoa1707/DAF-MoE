@@ -1,0 +1,21 @@
+protocol_version: phase2-v1
+model_name: daf_moe_v2
+rank_included: true
+fixed:
+  n_heads: 8
+  top_k: 2
+  router_noise_std: 0.1
+  mu_init_strategy: linspace
+search:
+  n_layers: {type: int, low: 1, high: 4}
+  d_emb: {type: stepped_int, low: 16, high: 384, step: 16}
+  d_ff_factor: {type: uniform, low: 0.66, high: 2.66}
+  dropout: {type: uniform, low: 0.0, high: 0.5}
+  learning_rate: {type: log_uniform, low: 3.0e-5, high: 1.0e-3}
+  weight_decay: {type: log_uniform, low: 1.0e-4, high: 1.0e-1}
+  n_experts: {type: categorical, choices: [4, 8]}
+  lambda_spec: {type: uniform, low: 0.01, high: 0.5}
+  lambda_repel: {type: log_uniform, low: 0.01, high: 0.1}
+  lambda_bal: {type: log_uniform, low: 0.01, high: 0.1}
+  ple_n_bins: {type: categorical, choices: [24, 48, 96]}
+forbidden: []
