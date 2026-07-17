@@ -100,9 +100,12 @@ bash scripts/phase2_preflight.sh
 ```
 
 The gate checks the 9 dataset files, model/adaptor routing, exact dependency
-versions, protocol constants, and the full smoke suite. It prints
-`READY_FOR_HPO` only when no blocker remains. It also generates, but does not
-execute, all dataset/model commands in `scripts/phase2_launch_commands.sh`.
+versions, protocol constants, and the full smoke suite. It prints `READY_FOR_HPO` when no blocker remains, or
+`READY_FOR_HPO_WITH_RETRIEVAL_WARNING` with exit code 0 when the only remaining
+issue is a retrieval scale timeout. It generates but does not execute
+`scripts/phase2_hpo_commands.sh` (99 HPO jobs) and
+`scripts/phase2_final_commands.sh` (108 final jobs). The old combined script
+is deprecated and fails fast.
 The machine-readable report is written to
 `results/phase2/preflight_report.json`.
 
@@ -117,8 +120,10 @@ python runners/run_phase2.py hpo \
 ```
 
 HPO is fixed to Optuna TPE seed 42 and 50 finite `COMPLETE` trials. Failed,
-OOM, invalid, and nonfinite trials do not count. TabICLv2 is fixed and has no
-HPO command.
+OOM, invalid, and nonfinite trials do not count. Each invocation defaults to
+`--max-attempts 200` and `--max-consecutive-failures 10`; stopping preserves the
+signed SQLite DB and JSON artifacts for resume. HPO best states stay in memory
+and do not create trial `.pth` files. TabICLv2 is fixed and has no HPO command.
 
 ### B. Final Evaluation
 

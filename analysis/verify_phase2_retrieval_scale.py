@@ -121,9 +121,7 @@ def _sample_config(space, n_rows, task_type):
     import optuna
     from optuna.samplers import TPESampler
 
-    study = optuna.create_study(
-        direction="maximize", sampler=TPESampler(seed=42)
-    )
+    study = optuna.create_study(direction="maximize", sampler=TPESampler(seed=42))
     trial = study.ask()
     resolved = space.sample(trial, n_rows=n_rows, task_type=task_type)
     return resolved, dict(trial.params)
@@ -162,9 +160,7 @@ def run_stage1(dataset, model_name, device_name, output_root):
     )
     stage_base = dict(base)
     stage_base.update({"epochs": 1, "patience": 0})
-    checkpoint = (
-        output_root / "artifacts" / identity.study_name / "stage1_best.pth"
-    )
+    checkpoint = output_root / "artifacts" / identity.study_name / "stage1_best.pth"
     checkpoint.parent.mkdir(parents=True, exist_ok=True)
     config = materialize_neural_config(
         stage_base,
@@ -214,7 +210,9 @@ def run_stage1(dataset, model_name, device_name, output_root):
     validation_seconds = time.perf_counter() - validation_started
     metric = float(metrics[base["optimize_metric"]])
     if not math.isfinite(loss) or not math.isfinite(metric):
-        raise FloatingPointError(f"Nonfinite Stage 1 result: loss={loss}, metric={metric}")
+        raise FloatingPointError(
+            f"Nonfinite Stage 1 result: loss={loss}, metric={metric}"
+        )
 
     torch.save(model.state_dict(), checkpoint)
     provenance = _refresh_manifest(config, model)
@@ -321,9 +319,6 @@ def run_stage2(dataset, model_name, device_name, output_root):
     study = create_phase2_study(identity, "maximize", storage)
     valid_before_run = valid_complete_count(study, identity)
     writer = TrialArtifactWriter(output_root / "artifacts")
-    checkpoint = (
-        output_root / "artifacts" / identity.study_name / "stage2_trial_best.pth"
-    )
     if device.type == "cuda":
         torch.cuda.reset_peak_memory_stats(device)
 
@@ -335,7 +330,7 @@ def run_stage2(dataset, model_name, device_name, output_root):
             resolved,
             base["task_type"],
             base["optimize_metric"],
-            checkpoint_path=checkpoint,
+            checkpoint_path=None,
             device=device,
             study_identity=identity,
         )
@@ -392,14 +387,10 @@ def run_stage2(dataset, model_name, device_name, output_root):
         "memory": {
             "peak_cpu_rss_kib": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,
             "max_cuda_memory_allocated": (
-                torch.cuda.max_memory_allocated(device)
-                if device.type == "cuda"
-                else 0
+                torch.cuda.max_memory_allocated(device) if device.type == "cuda" else 0
             ),
             "max_cuda_memory_reserved": (
-                torch.cuda.max_memory_reserved(device)
-                if device.type == "cuda"
-                else 0
+                torch.cuda.max_memory_reserved(device) if device.type == "cuda" else 0
             ),
             "oom": False,
         },
@@ -407,7 +398,7 @@ def run_stage2(dataset, model_name, device_name, output_root):
         "artifact": {
             "path": str(artifact.relative_to(ROOT)),
             "bytes": artifact.stat().st_size,
-            "checkpoint_bytes": checkpoint.stat().st_size if checkpoint.exists() else 0,
+            "checkpoint_bytes": 0,
         },
         "test_partition_accessed": False,
         "subsample": None,
@@ -536,8 +527,7 @@ def _trial_duration(stage2):
     if stage2.get("status") == "PASS":
         timing = stage2.get("timing", {})
         return (
-            timing.get("artifact_elapsed_seconds")
-            or timing.get("total_trial_seconds")
+            timing.get("artifact_elapsed_seconds") or timing.get("total_trial_seconds")
         ), False
     if stage2.get("status") == "TIMEOUT":
         return stage2.get("elapsed_seconds"), True
@@ -552,13 +542,15 @@ def _estimate_cost(combinations):
         if seconds is None:
             continue
         observations.append((item["model"], float(seconds), lower_bound))
-        per_combination.append({
-            "dataset": item["dataset"],
-            "model": item["model"],
-            "observed_trial_seconds": float(seconds),
-            "is_lower_bound": bool(lower_bound),
-            "fifty_trial_gpu_hours": float(seconds) * 50 / 3600,
-        })
+        per_combination.append(
+            {
+                "dataset": item["dataset"],
+                "model": item["model"],
+                "observed_trial_seconds": float(seconds),
+                "is_lower_bound": bool(lower_bound),
+                "fifty_trial_gpu_hours": float(seconds) * 50 / 3600,
+            }
+        )
     if not observations:
         return {"basis": "no Stage 2 observation", "per_combination": []}
 
@@ -570,17 +562,19 @@ def _estimate_cost(combinations):
     total_gpu_hours = sum(model_means.values()) * 9 * 50 / 3600
     gpu_count = max(1, torch.cuda.device_count())
     complete = [
-        item["stage2"] for item in combinations
+        item["stage2"]
+        for item in combinations
         if item.get("stage2", {}).get("status") == "PASS"
     ]
     mean_artifact = (
         sum(item["artifact"]["bytes"] for item in complete) / len(complete)
-        if complete else None
+        if complete
+        else None
     )
     mean_checkpoint = (
-        sum(item["artifact"]["checkpoint_bytes"] for item in complete)
-        / len(complete)
-        if complete else None
+        sum(item["artifact"]["checkpoint_bytes"] for item in complete) / len(complete)
+        if complete
+        else None
     )
     disk_bytes = (
         mean_artifact * 50 * 18 + mean_checkpoint * 18
@@ -626,9 +620,7 @@ def _write_markdown(path, report):
         trial_text = _format(trial_seconds)
         if trial_is_lower_bound and trial_seconds is not None:
             trial_text = ">=" + trial_text
-        query_rate = one.get("retrieval_measurements", {}).get(
-            "queries_per_second"
-        )
+        query_rate = one.get("retrieval_measurements", {}).get("queries_per_second")
         lines.append(
             "| {dataset} | {model} | {s1} | {total} | {train} | {val} | {metric} | {memory} | {candidates} | {query_rate} | {s2} | {trial} |".format(
                 dataset=item["dataset"],
@@ -638,7 +630,7 @@ def _write_markdown(path, report):
                 train=_format(one.get("timing", {}).get("epoch_training_seconds")),
                 val=_format(one.get("timing", {}).get("validation_seconds")),
                 metric=_format(one.get("training", {}).get("validation_metric")),
-                memory=_format(memory / (1024 ** 3) if memory is not None else None),
+                memory=_format(memory / (1024**3) if memory is not None else None),
                 candidates=one.get("data", {}).get("candidate_count", "N/A"),
                 query_rate=_format(query_rate),
                 s2=two.get("status", "NOT_RUN"),
@@ -686,17 +678,17 @@ def orchestrate(args):
                 if fragment.exists():
                     destination.append(json.loads(fragment.read_text(encoding="utf-8")))
                 else:
-                    destination.append({
-                        "stage": stage,
-                        "status": "NOT_RUN",
-                        "dataset": dataset,
-                        "model": model,
-                        "failure_reason": f"Missing fragment: {fragment}",
-                    })
+                    destination.append(
+                        {
+                            "stage": stage,
+                            "status": "NOT_RUN",
+                            "dataset": dataset,
+                            "model": model,
+                            "failure_reason": f"Missing fragment: {fragment}",
+                        }
+                    )
     else:
-        stage1 = _parallel_stage(
-            output_root, MATRIX, 1, devices, args.stage1_timeout
-        )
+        stage1 = _parallel_stage(output_root, MATRIX, 1, devices, args.stage1_timeout)
         passed = [
             (item["dataset"], item["model"])
             for item in stage1

@@ -1,7 +1,6 @@
 """Shared HPO/final execution for neural and native Phase 2 methods."""
 
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Optional
 
 import torch
@@ -80,8 +79,13 @@ def materialize_neural_config(
 ):
     search_space.validate_resolved(resolved_config, task_type=task_type)
     base_config = dict(base_config)
-    if base_config.get("model_name", search_space.model_name) != search_space.model_name:
-        raise ValueError("Base config model_name does not match search-space model_name.")
+    if (
+        base_config.get("model_name", search_space.model_name)
+        != search_space.model_name
+    ):
+        raise ValueError(
+            "Base config model_name does not match search-space model_name."
+        )
     forbidden = sorted(set(base_config).intersection(search_space.forbidden))
     if forbidden:
         raise ValueError(f"Base config contains forbidden fields: {forbidden}")
@@ -120,6 +124,14 @@ def _manifest_fields(manifest):
     return manifest["split_index_hash"], manifest["fitted_state_hash"]
 
 
+def _record_compute_ceiling(manifest, compute_ceiling_hours):
+    manifest = dict(manifest)
+    manifest["compute_ceiling_hours"] = compute_ceiling_hours
+    manifest.pop("manifest_hash", None)
+    manifest["manifest_hash"] = stable_hash(manifest)
+    return manifest
+
+
 def _evaluate_torch_model(model, loader, config, device):
     model.eval()
     predictions = []
@@ -134,9 +146,7 @@ def _evaluate_torch_model(model, loader, config, device):
     return Evaluator(
         task_type=config.task_type,
         target_transform=getattr(config, "target_encoder", None),
-    )(
-        torch.cat(targets), torch.cat(predictions)
-    )
+    )(torch.cat(targets), torch.cat(predictions))
 
 
 def _fit_neural(raw_dataset, config, include_test, device):
@@ -198,6 +208,7 @@ def execute_hpo_trial(
     checkpoint_path=None,
     device=None,
     study_identity=None,
+    compute_ceiling_hours=None,
 ):
     seed = 42
     study_identity = study_identity or build_study_identity(
@@ -226,6 +237,7 @@ def execute_hpo_trial(
         )
         manifest["dependency"] = dependency
         manifest["estimator_config"] = estimator_config
+        manifest = _record_compute_ceiling(manifest, compute_ceiling_hours)
         return ExecutionOutcome(
             metric_value=value,
             metrics={metric_name: value},
@@ -256,6 +268,7 @@ def execute_hpo_trial(
         seed,
         study_identity=study_identity,
     )
+    manifest = _record_compute_ceiling(manifest, compute_ceiling_hours)
     return ExecutionOutcome(
         metric_value=value,
         metrics=metrics,

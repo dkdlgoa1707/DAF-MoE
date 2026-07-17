@@ -26,8 +26,7 @@ repository. Full readiness is decided only by `scripts/phase2_preflight.sh`.
 - The unit matrix covers regression, binary, and multiclass protocol fixtures;
   every tunable search schema is sampled, guarded as a finite COMPLETE trial,
   materialized, and checked against two final seed manifests.
-- A real tiny MLP path executes sealed HPO data construction, checkpointed best
-  state restoration, and final seeds 43 and 44. Model behavior tests separately
+- A real tiny MLP path executes sealed HPO data construction, in-memory best-state restoration without persistent HPO trial checkpoints, and final seeds 43 and 44. Model behavior tests separately
   execute all local neural forward paths and both retrieval backward paths.
 - Native estimators keep model-specific frame ownership and fail fast when
   their exact dependency is absent or incompatible. The readiness gate runs
@@ -46,8 +45,10 @@ bash scripts/phase2_preflight.sh
 The command validates protocol/config/routing/data/dependency contracts, runs
 the full unit and architecture verification suite, writes
 `results/phase2/preflight_report.json`, and generates (but does not execute)
-`scripts/phase2_launch_commands.sh`. It prints `READY_FOR_HPO` only when no
-blocker remains. `--skip-tests` is available for regenerating the launch file,
+`scripts/phase2_hpo_commands.sh` (99 jobs) and
+`scripts/phase2_final_commands.sh` (108 jobs). Retrieval timeout-only reports
+return `READY_FOR_HPO_WITH_RETRIEVAL_WARNING`; dependency, correctness, nonfinite,
+and OOM failures remain blockers. `--skip-tests` is available for regenerating the launch file,
 but deliberately returns nonzero and can never declare readiness.
 
 The full model set requires a Python 3.10+ environment with the exact pins in

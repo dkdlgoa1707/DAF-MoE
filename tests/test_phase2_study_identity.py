@@ -1,8 +1,10 @@
+import json
 from pathlib import Path
 import tempfile
 import unittest
 
 from src.hpo.engine import (
+    HpoAttemptLimitError,
     TrialArtifactWriter,
     create_phase2_study,
     make_guarded_objective,
@@ -107,6 +109,59 @@ class StudyIdentitySQLiteTests(unittest.TestCase):
             self.assertEqual(
                 valid_complete_count(changed_policy_study, changed_policy), 0
             )
+
+    def test_interrupted_run_preserves_db_complete_trials_and_json(self):
+        space = load_search_space(SPACE_ROOT / "mlp.yaml")
+        identity = _identity(space)
+        with tempfile.TemporaryDirectory() as directory:
+            storage = identity.default_storage_url(directory)
+            writer = TrialArtifactWriter(Path(directory) / "artifacts")
+            complete = make_guarded_objective(
+                space,
+                lambda resolved, trial: {"metric_value": 0.5 + trial.number * 0.01},
+                n_rows=100,
+                artifact_writer=writer,
+                study_identity=identity,
+                task_type="classification",
+            )
+            study = create_phase2_study(identity, "maximize", storage)
+            run_until_valid_complete(study, complete, target=2, identity=identity)
+
+            def fail_evaluator(_resolved, _trial):
+                raise RuntimeError("persistent failure")
+
+            failing = make_guarded_objective(
+                space,
+                fail_evaluator,
+                n_rows=100,
+                artifact_writer=writer,
+                study_identity=identity,
+                task_type="classification",
+            )
+            with self.assertRaises(HpoAttemptLimitError):
+                run_until_valid_complete(
+                    study,
+                    failing,
+                    target=3,
+                    max_consecutive_failures=2,
+                    identity=identity,
+                )
+
+            self.assertTrue(Path(storage.removeprefix("sqlite:///")).is_file())
+            resumed = create_phase2_study(identity, "maximize", storage)
+            self.assertEqual(valid_complete_count(resumed, identity), 2)
+            artifacts = sorted(
+                (Path(directory) / "artifacts" / identity.study_name).glob(
+                    "trial_*.json"
+                )
+            )
+            self.assertEqual(len(artifacts), 4)
+            statuses = [
+                json.loads(path.read_text(encoding="utf-8"))["status"]
+                for path in artifacts
+            ]
+            self.assertEqual(statuses.count("COMPLETE"), 2)
+            self.assertEqual(statuses.count("FAIL"), 2)
 
     def test_custom_sqlite_path_must_include_signature_identity(self):
         space = load_search_space(SPACE_ROOT / "mlp.yaml")

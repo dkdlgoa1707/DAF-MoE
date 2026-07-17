@@ -1,8 +1,6 @@
 """Command-line orchestration for Phase 2 HPO and final evaluation."""
 
 import argparse
-from dataclasses import asdict
-import json
 from pathlib import Path
 
 import torch
@@ -11,6 +9,9 @@ import yaml
 from src.data.phase2_loader import get_phase2_dataloaders
 from src.data.splits import load_raw_dataset
 from src.hpo.engine import (
+    DEFAULT_MAX_ATTEMPTS,
+    DEFAULT_MAX_CONSECUTIVE_FAILURES,
+    HpoRunStopped,
     TrialArtifactWriter,
     create_phase2_study,
     make_guarded_objective,
@@ -49,9 +50,7 @@ def _write_yaml(path, payload):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = path.with_suffix(path.suffix + ".tmp")
-    temporary.write_text(
-        yaml.safe_dump(payload, sort_keys=False), encoding="utf-8"
-    )
+    temporary.write_text(yaml.safe_dump(payload, sort_keys=False), encoding="utf-8")
     temporary.replace(path)
 
 
@@ -81,7 +80,9 @@ def _best_config_payload(base_config, search_space, study, identity, n_rows):
     resolved = best_trial.user_attrs.get("resolved_config")
     if resolved is None:
         raise RuntimeError("Best trial has no resolved_config artifact.")
-    search_space.validate_resolved(resolved, n_rows=n_rows, task_type=base_config["task_type"])
+    search_space.validate_resolved(
+        resolved, n_rows=n_rows, task_type=base_config["task_type"]
+    )
     return {
         "protocol_version": PROTOCOL_VERSION,
         "model_name": search_space.model_name,
@@ -89,7 +90,9 @@ def _best_config_payload(base_config, search_space, study, identity, n_rows):
         "study_name": study.study_name,
         "study_signature": identity.signature,
         "study_signature_components": dict(identity.components),
-        "model_implementation_version": identity.components["model_implementation_version"],
+        "model_implementation_version": identity.components[
+            "model_implementation_version"
+        ],
         "effective_regression_target_policy": identity.components[
             "effective_regression_target_policy"
         ],
@@ -116,13 +119,15 @@ def run_hpo(args):
     study = create_phase2_study(identity, direction, storage)
     artifact_writer = TrialArtifactWriter(args.artifact_root)
     device = _device(args.device)
+    if args.compute_ceiling_hours is not None and space.model_name not in {
+        "tabr",
+        "modernnca",
+    }:
+        raise ValueError("--compute-ceiling-hours is reserved for TabR and ModernNCA.")
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
 
     def evaluator(resolved, trial):
-        checkpoint = (
-            Path(args.artifact_root)
-            / study_name
-            / f"trial_{trial.number:05d}_best.pth"
-        )
         return execute_hpo_trial(
             raw,
             base,
@@ -130,8 +135,9 @@ def run_hpo(args):
             resolved,
             base["task_type"],
             base["optimize_metric"],
-            checkpoint_path=checkpoint,
+            checkpoint_path=None,
             device=device,
+            compute_ceiling_hours=args.compute_ceiling_hours,
         )
 
     objective = make_guarded_objective(
@@ -142,9 +148,52 @@ def run_hpo(args):
         study_identity=identity,
         task_type=base["task_type"],
     )
-    run_until_valid_complete(
-        study, objective, target=args.complete_trials, identity=identity
+    try:
+        summary = run_until_valid_complete(
+            study,
+            objective,
+            target=args.complete_trials,
+            max_attempts=args.max_attempts,
+            max_consecutive_failures=args.max_consecutive_failures,
+            compute_ceiling_hours=args.compute_ceiling_hours,
+            identity=identity,
+        )
+    except HpoRunStopped as exc:
+        summary = dict(exc.summary)
+        summary.update(
+            {
+                "dataset": raw.dataset_name,
+                "model_name": space.model_name,
+                "storage": storage,
+                "compute_ceiling_hours": args.compute_ceiling_hours,
+                "max_attempts": args.max_attempts,
+                "max_consecutive_failures": args.max_consecutive_failures,
+                "max_cuda_memory_allocated": (
+                    torch.cuda.max_memory_allocated(device)
+                    if device.type == "cuda"
+                    else 0
+                ),
+                "metric": None,
+                "rank": None,
+            }
+        )
+        artifact_writer.write_run_status(study_name, summary)
+        print("HPO_STOPPED " + summary["message"])
+        raise SystemExit(2) from exc
+    summary.update(
+        {
+            "dataset": raw.dataset_name,
+            "model_name": space.model_name,
+            "storage": storage,
+            "compute_ceiling_hours": args.compute_ceiling_hours,
+            "max_attempts": args.max_attempts,
+            "max_consecutive_failures": args.max_consecutive_failures,
+            "max_cuda_memory_allocated": (
+                torch.cuda.max_memory_allocated(device) if device.type == "cuda" else 0
+            ),
+        }
     )
+    artifact_writer.write_run_status(study_name, summary)
     payload = _best_config_payload(base, space, study, identity, len(raw.features))
     output = args.best_output or (
         f"configs/experiments/phase2/{space.model_name}/"
@@ -229,9 +278,7 @@ def run_final(args):
             / space.model_name
             / f"seed{seed}.json"
         )
-        resume_manifest = _resume_manifest(
-            raw, base, space, resolved, seed, identity
-        )
+        resume_manifest = _resume_manifest(raw, base, space, resolved, seed, identity)
         if reusable_result(result_path, resume_manifest):
             print(f"RESUME seed={seed} path={result_path}")
             continue
@@ -276,6 +323,20 @@ def build_parser():
     hpo.add_argument("--artifact-root", default="results/phase2/trials")
     hpo.add_argument("--best-output")
     hpo.add_argument("--complete-trials", type=int, default=N_HPO_COMPLETE_TRIALS)
+    hpo.add_argument("--max-attempts", type=int, default=DEFAULT_MAX_ATTEMPTS)
+    hpo.add_argument(
+        "--max-consecutive-failures",
+        type=int,
+        default=DEFAULT_MAX_CONSECUTIVE_FAILURES,
+    )
+    hpo.add_argument(
+        "--compute-ceiling-hours",
+        type=float,
+        help=(
+            "Optional cumulative GPU-hour ceiling for TabR/ModernNCA. "
+            "No protocol default is imposed."
+        ),
+    )
     hpo.add_argument("--smoke", action="store_true")
     hpo.add_argument("--seed", type=int, default=HPO_SEED)
     hpo.add_argument("--device")

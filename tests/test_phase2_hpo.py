@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 import tempfile
+import time
 import unittest
 from unittest.mock import patch
 
@@ -10,11 +12,14 @@ import torch
 
 from src.data.splits import RawDataset
 from src.hpo.engine import (
+    HpoAttemptLimitError,
+    HpoComputeLimitError,
     TrialArtifactWriter,
     make_guarded_objective,
     run_until_valid_complete,
     valid_complete_count,
 )
+from src.hpo.cli import _resolved_for_final, build_parser
 from src.hpo.identity import StudyIdentity
 from src.hpo.schema import load_search_space, parse_search_space
 from src.phase2_protocol import PROTOCOL_VERSION, model_implementation_version
@@ -35,7 +40,9 @@ class FakeTrial:
 
     def suggest_float(self, name, low, high, log=False):
         if log:
-            value = float(np.exp(np.log(low) + self.fraction * (np.log(high) - np.log(low))))
+            value = float(
+                np.exp(np.log(low) + self.fraction * (np.log(high) - np.log(low)))
+            )
         else:
             value = float(low + self.fraction * (high - low))
         self.params[name] = value
@@ -45,7 +52,11 @@ class FakeTrial:
         if self.choose_high:
             value = high
         elif log:
-            raw = int(round(np.exp(np.log(low) + self.fraction * (np.log(high) - np.log(low)))))
+            raw = int(
+                round(
+                    np.exp(np.log(low) + self.fraction * (np.log(high) - np.log(low)))
+                )
+            )
             value = min(high, max(low, raw))
         else:
             value = low
@@ -78,11 +89,15 @@ class _FrozenTrial:
 
 class FakeStudy:
     def __init__(self):
+        self.study_name = "fake-study"
         self.trials = []
         self.user_attrs = {
             "study_signature": "fake-signature",
             "search_space_hash": "fake-search-space",
         }
+
+    def set_user_attr(self, name, value):
+        self.user_attrs[name] = value
 
     def optimize(self, objective, n_trials, catch):
         self.assert_one(n_trials)
@@ -92,9 +107,7 @@ class FakeStudy:
         try:
             value = objective(trial)
         except catch:
-            self.trials.append(
-                _FrozenTrial(number, "FAIL", None, trial.user_attrs)
-            )
+            self.trials.append(_FrozenTrial(number, "FAIL", None, trial.user_attrs))
         else:
             self.trials.append(
                 _FrozenTrial(number, "COMPLETE", value, trial.user_attrs)
@@ -114,7 +127,9 @@ def _identity(space, task_type="classification", metric="acc"):
             "dataset_schema_hash": "schema-hash",
             "dataset_schema_version": "test-v1",
             "model_name": space.model_name,
-            "model_implementation_version": model_implementation_version(space.model_name),
+            "model_implementation_version": model_implementation_version(
+                space.model_name
+            ),
             "task_type": task_type,
             "optimize_metric": metric,
             "search_space_hash": space.schema_hash,
@@ -129,7 +144,9 @@ def _tiny_raw(task_type="classification"):
     frame = pd.DataFrame(
         {
             "num": np.linspace(-2.0, 2.0, n_rows),
-            "num_missing": np.where(np.arange(n_rows) % 11 == 0, np.nan, np.arange(n_rows)),
+            "num_missing": np.where(
+                np.arange(n_rows) % 11 == 0, np.nan, np.arange(n_rows)
+            ),
             "cat": np.resize(np.array(["a", "b", None], dtype=object), n_rows),
         }
     )
@@ -149,13 +166,29 @@ def _tiny_raw(task_type="classification"):
 
 
 class SearchSpaceTests(unittest.TestCase):
+    def test_hpo_parser_exposes_bounded_retry_defaults(self):
+        args = build_parser().parse_args(
+            [
+                "hpo",
+                "--base-config",
+                "base.yaml",
+                "--search-space",
+                "space.yaml",
+            ]
+        )
+        self.assertEqual(args.max_attempts, 200)
+        self.assertEqual(args.max_consecutive_failures, 10)
+        self.assertIsNone(args.compute_ceiling_hours)
+
     def test_all_model_yamls_validate_and_sample_within_bounds(self):
         paths = sorted(SPACE_ROOT.glob("*.yaml"))
         self.assertEqual(len(paths), 12)
         for path in paths:
             space = load_search_space(path)
             task_type = "classification"
-            resolved_small = space.sample(FakeTrial(), n_rows=100_000, task_type=task_type)
+            resolved_small = space.sample(
+                FakeTrial(), n_rows=100_000, task_type=task_type
+            )
             resolved_large = space.sample(
                 FakeTrial(choose_high=True), n_rows=100_001, task_type=task_type
             )
@@ -223,7 +256,76 @@ class EngineSemanticsTests(unittest.TestCase):
         run_until_valid_complete(study, objective, target=50, max_attempts=60)
         self.assertEqual(valid_complete_count(study), 50)
         self.assertEqual(len(study.trials), 52)
-        self.assertEqual([trial.state.name for trial in study.trials[:2]], ["FAIL", "FAIL"])
+        self.assertEqual(
+            [trial.state.name for trial in study.trials[:2]], ["FAIL", "FAIL"]
+        )
+
+    def test_ten_consecutive_failures_stop_the_run(self):
+        study = FakeStudy()
+
+        def always_fail(_trial):
+            raise RuntimeError("intentional failure")
+
+        with self.assertRaises(HpoAttemptLimitError) as caught:
+            run_until_valid_complete(study, always_fail, target=50)
+        summary = caught.exception.summary
+        self.assertEqual(summary["status"], "CONSECUTIVE_FAILURE_LIMIT")
+        self.assertEqual(summary["attempts_this_run"], 10)
+        self.assertEqual(summary["valid_complete"], 0)
+        self.assertEqual(summary["state_counts"], {"FAIL": 10})
+
+    def test_default_two_hundred_attempt_limit_and_resume(self):
+        study = FakeStudy()
+
+        with self.assertRaises(HpoAttemptLimitError) as caught:
+            run_until_valid_complete(
+                study,
+                lambda trial: float(trial.number),
+                target=201,
+                max_consecutive_failures=None,
+            )
+        self.assertEqual(caught.exception.summary["status"], "ATTEMPT_LIMIT")
+        self.assertEqual(caught.exception.summary["attempts_this_run"], 200)
+        self.assertEqual(valid_complete_count(study), 200)
+
+        resumed = run_until_valid_complete(
+            study,
+            lambda trial: float(trial.number),
+            target=201,
+            max_consecutive_failures=None,
+        )
+        self.assertEqual(resumed["attempts_this_run"], 1)
+        self.assertEqual(resumed["valid_complete"], 201)
+
+    def test_compute_ceiling_stops_without_fabricating_a_metric(self):
+        study = FakeStudy()
+
+        def slow_complete(trial):
+            time.sleep(0.01)
+            return float(trial.number)
+
+        with self.assertRaises(HpoComputeLimitError) as caught:
+            run_until_valid_complete(
+                study,
+                slow_complete,
+                target=2,
+                compute_ceiling_hours=1e-6,
+            )
+        summary = caught.exception.summary
+        self.assertEqual(summary["status"], "COMPUTE_LIMIT")
+        self.assertLess(summary["valid_complete"], 2)
+        self.assertNotIn("metric", summary)
+
+    def test_keyboard_interrupt_and_system_exit_propagate(self):
+        for exception_type in (KeyboardInterrupt, SystemExit):
+            with self.subTest(exception_type=exception_type.__name__):
+                study = FakeStudy()
+
+                def interrupt(_trial):
+                    raise exception_type()
+
+                with self.assertRaises(exception_type):
+                    run_until_valid_complete(study, interrupt, target=1)
 
     def test_nonfinite_metric_raises_and_writes_fail_artifact(self):
         space = load_search_space(SPACE_ROOT / "mlp.yaml")
@@ -248,7 +350,11 @@ class EngineSemanticsTests(unittest.TestCase):
 
 class ExecutionSmokeTests(unittest.TestCase):
     def setUp(self):
-        self.space = load_search_space(SPACE_ROOT / "mlp.yaml")
+        production_space = load_search_space(SPACE_ROOT / "mlp.yaml")
+        payload = production_space.as_dict()
+        payload["fixed"]["epochs"] = 3
+        payload["fixed"]["patience"] = 1
+        self.space = parse_search_space(payload)
         self.raw = _tiny_raw()
         self.base = {
             "model_name": "mlp",
@@ -260,27 +366,32 @@ class ExecutionSmokeTests(unittest.TestCase):
             FakeTrial(fraction=0.0), len(self.raw.features), "classification"
         )
 
-    def test_one_trial_uses_sealed_hpo_and_restores_disk_best(self):
-        with tempfile.TemporaryDirectory() as directory:
-            checkpoint = Path(directory) / "trial_best.pth"
-            with patch(
+    def test_three_hpo_trials_use_memory_best_without_checkpoints(self):
+        with (
+            patch(
                 "src.phase2_execution.get_phase2_dataloaders",
                 side_effect=AssertionError("HPO requested test data"),
-            ):
-                outcome = execute_hpo_trial(
+            ),
+            patch("src.trainer.torch.save") as save_checkpoint,
+        ):
+            outcomes = [
+                execute_hpo_trial(
                     self.raw,
                     self.base,
                     self.space,
                     self.resolved,
                     "classification",
                     "acc",
-                    checkpoint_path=checkpoint,
+                    checkpoint_path=None,
                     device=torch.device("cpu"),
                 )
-            self.assertTrue(np.isfinite(outcome.metric_value))
-            self.assertTrue(checkpoint.exists())
-            self.assertIsNotNone(outcome.best_epoch_or_iteration)
-            self.assertLessEqual(outcome.epochs_completed, 400)
+                for _ in range(3)
+            ]
+        self.assertTrue(all(np.isfinite(item.metric_value) for item in outcomes))
+        self.assertTrue(
+            all(item.best_epoch_or_iteration is not None for item in outcomes)
+        )
+        save_checkpoint.assert_not_called()
 
     def test_two_final_seeds_and_hash_gated_resume(self):
         outcomes = []
@@ -310,6 +421,35 @@ class ExecutionSmokeTests(unittest.TestCase):
             changed = dict(outcomes[0].manifest)
             changed["resolved_config_hash"] = "mismatch"
             self.assertFalse(reusable_result(result_path, changed))
+
+    def test_tunable_final_rejects_missing_or_mismatched_best_config(self):
+        identity = _identity(self.space)
+        with self.assertRaisesRegex(ValueError, "require --best-config"):
+            _resolved_for_final(
+                SimpleNamespace(best_config=None),
+                self.space,
+                "classification",
+                len(self.raw.features),
+                identity,
+            )
+
+        payload = {
+            "protocol_version": PROTOCOL_VERSION,
+            "model_name": self.space.model_name,
+            "search_space_hash": self.space.schema_hash,
+            "study_signature": "mismatch",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "best.yaml"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "study signature mismatch"):
+                _resolved_for_final(
+                    SimpleNamespace(best_config=str(path)),
+                    self.space,
+                    "classification",
+                    len(self.raw.features),
+                    identity,
+                )
 
     def test_hpo_seed_cannot_enter_final(self):
         with self.assertRaisesRegex(ValueError, "seed 42"):
