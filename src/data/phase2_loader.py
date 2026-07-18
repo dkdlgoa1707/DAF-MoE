@@ -104,14 +104,19 @@ def prepare_phase2_hpo(raw_dataset: RawDataset, config) -> PreparedHPOData:
     )
     manifest = build_run_manifest(
         dataset_name=raw_dataset.dataset_name,
-        schema_version=raw_dataset.schema_version,
-        schema_hash=raw_dataset.schema_hash,
+        schema_version=partitions.dataset_schema_version,
+        schema_hash=partitions.dataset_schema_hash,
         split_hash=partitions.split_hash,
         adapter=adapter,
         target_encoder=target_encoder,
         target_policy=config.effective_target_policy,
         seed=config.seed,
-        subsample_size=getattr(config, "subsample", None),
+        subsample_size=(
+            partitions.train_subsample["selected_train_size"]
+            if partitions.train_subsample is not None
+            else None
+        ),
+        train_subsample=partitions.train_subsample,
         missing_counts={
             "train": train_report.missing_counts,
             "validation": validation_report.missing_counts,
@@ -140,14 +145,19 @@ def prepare_phase2_final(raw_dataset: RawDataset, config) -> PreparedFinalData:
     test, test_report = _prepare_partition(partitions.test, adapter, target_encoder)
     manifest = build_run_manifest(
         dataset_name=raw_dataset.dataset_name,
-        schema_version=raw_dataset.schema_version,
-        schema_hash=raw_dataset.schema_hash,
+        schema_version=partitions.dataset_schema_version,
+        schema_hash=partitions.dataset_schema_hash,
         split_hash=partitions.split_hash,
         adapter=adapter,
         target_encoder=target_encoder,
         target_policy=config.effective_target_policy,
         seed=config.seed,
-        subsample_size=getattr(config, "subsample", None),
+        subsample_size=(
+            partitions.train_subsample["selected_train_size"]
+            if partitions.train_subsample is not None
+            else None
+        ),
+        train_subsample=partitions.train_subsample,
         missing_counts={
             "train": train_report.missing_counts,
             "validation": validation_report.missing_counts,

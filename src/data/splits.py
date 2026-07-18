@@ -14,6 +14,9 @@ from sklearn.model_selection import train_test_split
 HPO_SEED = 42
 FINAL_SEEDS = tuple(range(43, 58))
 SPLIT_VERSION = "phase2-80-10-10-v1"
+TRAIN_SUBSAMPLE_THRESHOLD = 100_000
+TRAIN_SUBSAMPLE_POLICY_VERSION = "phase2-train-only-100k-v1"
+TRAIN_SUBSAMPLE_SEED_POLICY = "execution_seed"
 
 
 def _stable_hash(payload) -> str:
@@ -80,6 +83,9 @@ class HPOPartitions:
     train: RawPartition
     validation: RawPartition
     split_hash: str
+    dataset_schema_hash: str
+    dataset_schema_version: str
+    train_subsample: Optional[Mapping]
 
 
 @dataclass(frozen=True)
@@ -88,6 +94,9 @@ class FinalPartitions:
     validation: RawPartition
     test: RawPartition
     split_hash: str
+    dataset_schema_hash: str
+    dataset_schema_version: str
+    train_subsample: Optional[Mapping]
 
 
 class TrainOnlyTargetEncoder:
@@ -235,7 +244,66 @@ class RawSplitRegistry:
     def __init__(self, dataset: RawDataset, task_type: str, seed: int):
         self.dataset = dataset
         self.task_type = task_type
-        self.indices = create_split_indices(dataset.target, task_type, seed)
+        self.seed = int(seed)
+        full_indices = create_split_indices(dataset.target, task_type, self.seed)
+        self.full_train_size = len(full_indices.train)
+        self.train_subsample_applied = (
+            self.full_train_size > TRAIN_SUBSAMPLE_THRESHOLD
+        )
+        if self.train_subsample_applied:
+            selected_train = np.random.default_rng(self.seed).choice(
+                full_indices.train,
+                size=TRAIN_SUBSAMPLE_THRESHOLD,
+                replace=False,
+            )
+            selected_train = np.sort(np.asarray(selected_train, dtype=np.int64))
+            self.indices = SplitIndices(
+                train=selected_train,
+                validation=full_indices.validation,
+                test=full_indices.test,
+                seed=self.seed,
+                version=f"{SPLIT_VERSION}+{TRAIN_SUBSAMPLE_POLICY_VERSION}",
+            )
+            policy_identity = {
+                "policy_version": TRAIN_SUBSAMPLE_POLICY_VERSION,
+                "max_train_samples": TRAIN_SUBSAMPLE_THRESHOLD,
+                "seed_policy": TRAIN_SUBSAMPLE_SEED_POLICY,
+                "threshold_rule": "apply_when_full_train_exceeds_max",
+            }
+            self.dataset_schema_hash = _stable_hash(
+                {
+                    "base_dataset_schema_hash": dataset.schema_hash,
+                    "train_subsample": policy_identity,
+                }
+            )
+            self.dataset_schema_version = (
+                f"{dataset.schema_version}+{TRAIN_SUBSAMPLE_POLICY_VERSION}:"
+                f"max={TRAIN_SUBSAMPLE_THRESHOLD}:"
+                f"seed={TRAIN_SUBSAMPLE_SEED_POLICY}"
+            )
+        else:
+            self.indices = full_indices
+            self.dataset_schema_hash = dataset.schema_hash
+            self.dataset_schema_version = str(dataset.schema_version)
+
+    def _train_subsample_manifest(self, include_test: bool):
+        if not self.train_subsample_applied:
+            return None
+        manifest = {
+            "applied": True,
+            "policy_version": TRAIN_SUBSAMPLE_POLICY_VERSION,
+            "max_train_samples": TRAIN_SUBSAMPLE_THRESHOLD,
+            "threshold_rule": "apply_when_full_train_exceeds_max",
+            "seed_policy": TRAIN_SUBSAMPLE_SEED_POLICY,
+            "seed": self.seed,
+            "full_train_size": self.full_train_size,
+            "selected_train_size": len(self.indices.train),
+            "selected_row_ids_hash": _stable_hash(self.indices.train.tolist()),
+            "validation_size": len(self.indices.validation),
+        }
+        if include_test:
+            manifest["test_size"] = len(self.indices.test)
+        return manifest
 
     def _partition(self, indices) -> RawPartition:
         indices = np.asarray(indices, dtype=np.int64)
@@ -250,6 +318,9 @@ class RawSplitRegistry:
             train=self._partition(self.indices.train),
             validation=self._partition(self.indices.validation),
             split_hash=self.indices.split_hash,
+            dataset_schema_hash=self.dataset_schema_hash,
+            dataset_schema_version=self.dataset_schema_version,
+            train_subsample=self._train_subsample_manifest(include_test=False),
         )
 
     def for_final(self) -> FinalPartitions:
@@ -258,4 +329,7 @@ class RawSplitRegistry:
             validation=self._partition(self.indices.validation),
             test=self._partition(self.indices.test),
             split_hash=self.indices.split_hash,
+            dataset_schema_hash=self.dataset_schema_hash,
+            dataset_schema_version=self.dataset_schema_version,
+            train_subsample=self._train_subsample_manifest(include_test=True),
         )

@@ -55,6 +55,7 @@ def build_run_manifest(
     target_policy,
     seed,
     subsample_size=None,
+    train_subsample=None,
     missing_counts=None,
     unseen_category_counts=None,
     git_sha=None,
@@ -90,5 +91,7 @@ def build_run_manifest(
         "random_seed": int(seed),
         "subsample_size": subsample_size,
     }
+    if train_subsample is not None:
+        manifest["train_subsample"] = canonicalize(train_subsample)
     manifest["manifest_hash"] = stable_hash(manifest)
     return manifest

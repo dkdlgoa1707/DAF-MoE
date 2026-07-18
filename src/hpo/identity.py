@@ -5,7 +5,9 @@ from pathlib import Path
 from typing import Mapping
 
 from src.data.provenance import stable_hash
+from src.data.splits import RawSplitRegistry
 from src.phase2_protocol import (
+    HPO_SEED,
     PROTOCOL_VERSION,
     model_implementation_version,
     resolve_target_policy,
@@ -78,11 +80,12 @@ class StudyIdentity:
 def build_study_identity(raw_dataset, base_config, search_space):
     model_name = search_space.model_name
     task_type = base_config["task_type"]
+    split_registry = RawSplitRegistry(raw_dataset, task_type, HPO_SEED)
     components = {
         "protocol_version": PROTOCOL_VERSION,
         "dataset_name": raw_dataset.dataset_name,
-        "dataset_schema_hash": raw_dataset.schema_hash,
-        "dataset_schema_version": str(raw_dataset.schema_version),
+        "dataset_schema_hash": split_registry.dataset_schema_hash,
+        "dataset_schema_version": split_registry.dataset_schema_version,
         "model_name": model_name,
         "model_implementation_version": model_implementation_version(model_name),
         "task_type": task_type,
